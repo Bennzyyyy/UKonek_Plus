@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_multi_formatter/flutter_multi_formatter.dart';
 
 import 'package:http/http.dart' as http;
@@ -153,9 +154,9 @@ class _uKonekRegisterPageState extends State<uKonekRegisterPage> {
                   child: Column(
                     children: [
 
-                      buildTextField("First Name", firstNameController, isRequired: true),
-                      buildTextField("Last Name", lastNameController, isRequired: true),
-                      buildTextField("Middle Initial", middleInitialController),
+                      buildTextField("First Name", firstNameController, isRequired: true, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\.\-]'))]),
+                      buildTextField("Last Name", lastNameController, isRequired: true, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\.\-]'))]),
+                      buildTextField("Middle Initial", middleInitialController, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')), LengthLimitingTextInputFormatter(2)]),
 
                       // DATE OF BIRTH
                       GestureDetector(
@@ -195,7 +196,7 @@ class _uKonekRegisterPageState extends State<uKonekRegisterPage> {
                               keyboardType: TextInputType.phone,
                               inputFormatters: selectedCountryCode == "+63"
                                   ? [PhoneInputFormatter(defaultCountryCode: 'PH')]
-                                  : null,
+                                  : [FilteringTextInputFormatter.digitsOnly],
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return "Contact number required";
@@ -244,7 +245,7 @@ class _uKonekRegisterPageState extends State<uKonekRegisterPage> {
                         ],
                       ),
 
-                      buildTextField("Email", emailController, isRequired: true),
+                      buildTextField("Email", emailController, isRequired: true, keyboardType: TextInputType.emailAddress),
                       buildTextField("Complete Address", addressController),
 
                       const SizedBox(height: 20),
@@ -267,9 +268,9 @@ class _uKonekRegisterPageState extends State<uKonekRegisterPage> {
 
                       const SizedBox(height: 15),
 
-                      buildTextField("Complete Name", emergencyNameController),
-                      buildTextField("Contact Number", emergencyContactController),
-                      buildTextField("Relation", relationController),
+                      buildTextField("Complete Name", emergencyNameController, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\.\-]'))]),
+                      buildTextField("Contact Number", emergencyContactController, keyboardType: TextInputType.phone, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                      buildTextField("Relation", relationController, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\.\-]'))]),
 
                       const SizedBox(height: 30),
 
@@ -339,13 +340,15 @@ class _uKonekRegisterPageState extends State<uKonekRegisterPage> {
   }
 
   Widget buildTextField(String label, TextEditingController controller,
-      {bool enabled = true, bool isPassword = false, bool isRequired = false}) {
+      {bool enabled = true, bool isPassword = false, bool isRequired = false, TextInputType? keyboardType, List<TextInputFormatter>? inputFormatters}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: controller,
         enabled: enabled,
         obscureText: isPassword,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         validator: isRequired ? (value) {
           if (value == null || value.isEmpty) {
             return "$label is required";
