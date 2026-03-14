@@ -11,33 +11,66 @@
 <body>
   <div class="app">
     <aside class="sidebar" id="sidebar">
-      <div class="brand-row">
-        <div class="logo">
-        </div>
-        <h3 class="brand-text">U-Konek+</h3>
-        <div class="control-btns">
-          <button id="burger" class="icon-btn" aria-label="Toggle sidebar">☰</button>
-        </div>
-      </div>
-
-      <nav class="nav" aria-label="Main navigation">
-        <a href="#" class="nav-item" data-section="dashboard"><span class="icon">🏠</span><span
-            class="label">Dashboard</span></a>
-        <a href="#" class="nav-item" data-section="schedule"><span class="icon">📅</span><span
-            class="label">Schedule</span></a>
-        <div class="nav-item dropdown">
-          <button class="nav-btn" aria-label="Users menu"><span class="icon">👥</span><span
-              class="label">Users</span><span class="arrow">▼</span></button>
-          <div class="dropdown-menu hidden">
-            <a href="#" class="dropdown-item" data-section="account-management">Account Management</a>
-            <a href="#" class="dropdown-item" data-section="account-registration">Account Registration</a>
+      <div class="sidebar-inner">
+        <div class="brand-row">
+          <div class="logo"></div>
+          <div class="brand-stack">
+            <h3 class="brand-text">U-Konek+</h3>
+            <p class="brand-subtext">Admin Workspace</p>
+          </div>
+          <div class="control-btns">
+            <button id="burger" class="icon-btn" aria-label="Toggle sidebar">☰</button>
           </div>
         </div>
-        <a href="#" class="nav-item" data-section="reports"><span class="icon">📄</span><span
-            class="label">Reports</span></a>
-        <a href="#" class="nav-item" data-section="settings"><span class="icon">⚙️</span><span
-            class="label">Settings</span></a>
-      </nav>
+        <p class="sidebar-section-label">Main</p>
+
+        <nav class="nav" aria-label="Main navigation">
+          <a href="#" class="nav-item" data-section="dashboard" title="Dashboard">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11.5L12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/></svg>
+            </span>
+            <span class="label">Dashboard</span>
+          </a>
+          <a href="#" class="nav-item" data-section="schedule" title="Schedule">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </span>
+            <span class="label">Schedule</span>
+          </a>
+          <div class="nav-item dropdown">
+            <button class="nav-btn" aria-label="Users menu" title="Users">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a3 3 0 0 1 0 5.75"/></svg>
+              </span>
+              <span class="label">Users</span>
+              <span class="arrow">▾</span>
+            </button>
+            <div class="dropdown-menu hidden">
+              <a href="#" class="dropdown-item" data-section="account-management">Account Management</a>
+            </div>
+          </div>
+          <a href="#" class="nav-item" data-section="reports" title="Reports">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16l4-3 4 3 4-3 4 3V8z"/><path d="M14 2v6h6"/></svg>
+            </span>
+            <span class="label">Reports</span>
+          </a>
+          <a href="#" class="nav-item" data-section="settings" title="Settings">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.32.2.66.2 1s-.07.68-.2 1z"/></svg>
+            </span>
+            <span class="label">Settings</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-footer-dot"></div>
+          <div class="sidebar-footer-copy">
+            <p class="sidebar-footer-title">System Status</p>
+            <p class="sidebar-footer-sub">All services online</p>
+          </div>
+        </div>
+      </div>
     </aside>
 
     <main class="mainview">
@@ -49,7 +82,11 @@
             </div>
           </div>
           <div class="right-controls">
-            <button id="notif-btn" class="icon-btn" aria-label="Notifications">🔔</button>
+            <button id="notif-btn" class="icon-btn topbar-icon-btn" aria-label="Notifications">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -59,26 +96,108 @@
             <div class="user-pos">Administrator</div>
           </div>
           <div class="profile-img" title="Profile"></div>
-          <button id="logout-btn" class="icon-btn" title="Logout"
-            style="margin-left: 10px; color: #dc2626; font-weight: bold;">Logout</button>
+          <button id="logout-btn" class="icon-btn logout-btn" title="Logout">Logout</button>
         </div>
       </div>
 
       <section class="section-top" id="dashboard-section">
-        <h2>Medyo Dashboard</h2>
+        <div class="dashboard-hero fade-in-up">
+          <div>
+            <p class="section-kicker">Operations Overview</p>
+            <h2 class="section-title">Admin Command Center</h2>
+            <p class="section-subtitle">Monitor registrations, review pending approvals, and keep staff onboarding flowing smoothly.</p>
+          </div>
+          <div class="hero-actions">
+            <button id="dash-refresh-btn" class="chip-btn">Refresh Data</button>
+            <button id="dash-open-pending-btn" class="chip-btn chip-btn-outline">Review Pending</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card fade-in-up" style="animation-delay: 0.03s;">
+            <p class="stat-label">Total Staff</p>
+            <p id="stat-total-staff" class="stat-value">0</p>
+            <p class="stat-foot">All active records</p>
+          </article>
+          <article class="stat-card fade-in-up" style="animation-delay: 0.06s;">
+            <p class="stat-label">Pending Approvals</p>
+            <p id="stat-pending-staff" class="stat-value stat-warning">0</p>
+            <p class="stat-foot">Needs review</p>
+          </article>
+          <article class="stat-card fade-in-up" style="animation-delay: 0.09s;">
+            <p class="stat-label">Doctors</p>
+            <p id="stat-doctors" class="stat-value">0</p>
+            <p class="stat-foot">Clinical personnel</p>
+          </article>
+          <article class="stat-card fade-in-up" style="animation-delay: 0.12s;">
+            <p class="stat-label">Active Accounts</p>
+            <p id="stat-active-staff" class="stat-value stat-success">0</p>
+            <p class="stat-foot">Ready to sign in</p>
+          </article>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel fade-in-up" style="animation-delay: 0.15s;">
+            <div class="panel-head">
+              <h3>Pending Registration Queue</h3>
+              <span class="panel-hint">Click users in Account Management to approve/reject.</span>
+            </div>
+            <div class="table-wrap">
+              <table class="accounts-table compact-table">
+                <thead>
+                  <tr class="table-header-row">
+                    <th class="table-header-cell">Username</th>
+                    <th class="table-header-cell">Employee ID</th>
+                    <th class="table-header-cell">Role</th>
+                    <th class="table-header-cell">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-pending-preview"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel fade-in-up" style="animation-delay: 0.18s;">
+            <div class="panel-head">
+              <h3>Latest Active Accounts</h3>
+              <span class="panel-hint" id="dashboard-last-sync">Last synced: --</span>
+            </div>
+            <div class="table-wrap">
+              <table class="accounts-table compact-table">
+                <thead>
+                  <tr class="table-header-row">
+                    <th class="table-header-cell">Username</th>
+                    <th class="table-header-cell">Role</th>
+                    <th class="table-header-cell">Status</th>
+                    <th class="table-header-cell">Created</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-active-preview"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section id="users-section" class="section-top hidden">
         <div id="account-management" class="hidden">
-          <h2>Account Management</h2>
+          <div class="management-shell">
+            <div class="management-head">
+              <div>
+                <h2 class="section-title">Account Management</h2>
+                <p class="section-subtitle">Review all active accounts and process pending registrations.</p>
+              </div>
+              <div class="management-actions">
+                <button id="refresh-accounts-btn" class="chip-btn">Refresh Tables</button>
+              </div>
+            </div>
 
-          <div class="mt-20 p-20 bg-light rounded">
-            <div class="flex flex-between align-center mb-15">
+            <div class="management-toolbar">
               <div class="tabs">
                 <button id="tab-registered" class="tab active">Registered Accounts</button>
                 <button id="tab-pending" class="tab">Pending Registrations</button>
               </div>
-              <div>
+              <div class="toolbar-right">
                 <label class="filter-label">Filter by Role:</label>
                 <select id="role-filter" class="filter-select">
                   <option value="">All Roles</option>
@@ -88,6 +207,7 @@
                 </select>
               </div>
             </div>
+
             <div id="registered-pane">
               <table id="accounts-table" class="accounts-table">
                 <thead>
@@ -126,8 +246,8 @@
               <table id="pending-table" class="accounts-table">
                 <thead>
                   <tr class="table-header-row">
-                    <th class="table-header-cell">Name</th>
-                    <th class="table-header-cell">Email</th>
+                    <th class="table-header-cell">Username</th>
+                    <th class="table-header-cell">Employee ID</th>
                     <th class="table-header-cell">Role</th>
                     <th class="table-header-cell">Submitted</th>
                   </tr>
@@ -136,78 +256,6 @@
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-        <div id="account-registration" class="hidden">
-          <h2>Account Registration</h2>
-          <div class="flex justify-center section-top">
-            <form id="registration-form" class="registration-box" novalidate>
-              <div class="field">
-                <label class="inputLabel" for="reg-username-dash">Username</label>
-                <input id="reg-username-dash" type="text" placeholder="Choose a username" required />
-                <div id="err-reg-username" class="field-error note hidden"></div>
-              </div>
-
-              <div class="field">
-                <label class="inputLabel" for="reg-employee-id-dash">Employee ID</label>
-                <input id="reg-employee-id-dash" type="text" placeholder="e.g. EMP-12345" required />
-                <div id="err-reg-employee" class="field-error note hidden"></div>
-              </div>
-
-              <div class="field">
-                <label class="inputLabel" for="reg-role-dash">Role</label>
-                <select id="reg-role-dash" required>
-                  <option value="">Select role</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-
-              <div id="doctor-fields-dash" style="display:none">
-                <div class="field">
-                  <label class="inputLabel" for="reg-specialization-dash">Specialization</label>
-                  <input id="reg-specialization-dash" type="text" placeholder="e.g. Cardiology" />
-                </div>
-                <div class="field">
-                  <label class="inputLabel">Schedule Days</label>
-                  <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px;">
-                    <label><input type="checkbox" name="schedule-day-dash" value="Monday"> Monday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Tuesday"> Tuesday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Wednesday"> Wednesday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Thursday"> Thursday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Friday"> Friday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Saturday"> Saturday</label>
-                    <label><input type="checkbox" name="schedule-day-dash" value="Sunday"> Sunday</label>
-                  </div>
-                </div>
-                <div class="field">
-                  <label class="inputLabel" for="reg-schedule-start-dash">Start Hour (0-23)</label>
-                  <input id="reg-schedule-start-dash" type="number" min="0" max="23" placeholder="e.g. 8" />
-                </div>
-                <div class="field">
-                  <label class="inputLabel" for="reg-schedule-end-dash">End Hour (0-23)</label>
-                  <input id="reg-schedule-end-dash" type="number" min="0" max="23" placeholder="e.g. 17" />
-                </div>
-              </div>
-
-              <div class="field">
-                <label class="inputLabel" for="reg-password-dash">Password</label>
-                <input id="reg-password-dash" type="password" placeholder="Min. 6 characters" required />
-                <div id="err-reg-password" class="field-error note hidden"></div>
-              </div>
-
-              <div class="field">
-                <label class="inputLabel" for="reg-confirm-password-dash">Confirm Password</label>
-                <input id="reg-confirm-password-dash" type="password" placeholder="Repeat your password" required />
-                <div id="err-reg-confirm" class="field-error note hidden"></div>
-              </div>
-
-              <div class="actions mt-14">
-                <button type="submit" class="btn">Register Personnel</button>
-              </div>
-              <div id="registration-msg" class="note hidden"></div>
-            </form>
           </div>
         </div>
       </section>

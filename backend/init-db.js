@@ -51,6 +51,8 @@ function initializeDatabase() {
                 specialization VARCHAR(255) DEFAULT NULL,
                 schedule VARCHAR(255) DEFAULT NULL,
                 status VARCHAR(50) DEFAULT 'Active',
+                password_reset_token_hash VARCHAR(64) DEFAULT NULL,
+                password_reset_token_expires DATETIME DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
@@ -65,10 +67,23 @@ function initializeDatabase() {
                 role VARCHAR(100) NOT NULL,
                 specialization VARCHAR(255) DEFAULT NULL,
                 schedule VARCHAR(255) DEFAULT NULL,
-                email_verified TINYINT(1) DEFAULT 0,
-                verification_token VARCHAR(255) DEFAULT NULL,
-                token_expires_at DATETIME DEFAULT NULL,
                 status VARCHAR(50) DEFAULT 'Pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+
+        const verificationSql = `
+            CREATE TABLE staff_email_verifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                employee_id VARCHAR(100) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                role VARCHAR(100) NOT NULL,
+                specialization VARCHAR(255) DEFAULT NULL,
+                schedule VARCHAR(255) DEFAULT NULL,
+                verification_token_hash VARCHAR(64) NOT NULL,
+                verification_token_expires DATETIME NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
@@ -96,8 +111,10 @@ function initializeDatabase() {
 
         recreateTable('staff', staffSql, () => {
             recreateTable('pending_staff', pendingSql, () => {
-                recreateTable('patients', patientsSql, () => {
-                    seedAdmin(connection);
+                recreateTable('staff_email_verifications', verificationSql, () => {
+                    recreateTable('patients', patientsSql, () => {
+                        seedAdmin(connection);
+                    });
                 });
             });
         });

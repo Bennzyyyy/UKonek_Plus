@@ -1,59 +1,172 @@
 const nodemailer = require('nodemailer');
-const crypto = require('crypto');
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: false,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
-});
+function isTrue(value, defaultValue = false) {
+    if (value === undefined || value === null || value === '') {
+        return defaultValue;
+    }
+    return String(value).toLowerCase() === 'true';
+}
 
-/**
- * Generates a random verification token.
- * @returns {string} 64-char hex token
- */
-exports.generateVerificationToken = () => {
-    return crypto.randomBytes(32).toString('hex');
+function getSmtpTransport() {
+	const host = process.env.SMTP_HOST;
+	const port = Number(process.env.SMTP_PORT || 587);
+	const user = process.env.SMTP_USER;
+	const pass = process.env.SMTP_PASS;
+
+	if (!host || !user || !pass) {
+		throw new Error('SMTP configuration is missing. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS.');
+	}
+
+	const secure = port === 465;
+	const forceIpv4 = isTrue(process.env.SMTP_FORCE_IPV4, true);
+
+	return nodemailer.createTransport({
+		host,
+		port,
+		secure,
+		family: forceIpv4 ? 4 : undefined,
+		auth: {
+			user,
+			pass
+		}
+	});
+}
+
+exports.sendStaffVerificationEmail = async ({ to, username, verificationUrl, expiresHours = 24 }) => {
+	const transporter = getSmtpTransport();
+	const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+	const appName = process.env.APP_NAME || 'uKonek Plus';
+
+	const subject = `${appName}: Verify your staff registration email`;
+	const text = [
+		`Hello ${username},`,
+		'',
+		`Thanks for registering at ${appName}.`,
+		`Please verify your email by opening this link (valid for ${expiresHours} hours):`,
+		verificationUrl,
+		'',
+		'After verification, an administrator will review and approve your account.',
+		'',
+		'If you did not request this, you can ignore this message.'
+	].join('\n');
+
+	const html = `
+		<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
+			<p>Hello <strong>${username}</strong>,</p>
+			<p>Thanks for registering at <strong>${appName}</strong>.</p>
+			<p>Please verify your email by clicking the button below. This link is valid for ${expiresHours} hours.</p>
+			<p>
+				<a
+					href="${verificationUrl}"
+					style="display: inline-block; background: #1d4ed8; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 6px;"
+				>
+					Verify Email
+				</a>
+			</p>
+			<p>If the button does not work, copy and paste this URL into your browser:</p>
+			<p><a href="${verificationUrl}">${verificationUrl}</a></p>
+			<p>After verification, an administrator will review and approve your account.</p>
+			<p>If you did not request this, you can ignore this message.</p>
+		</div>
+	`;
+
+	await transporter.sendMail({
+		from,
+		to,
+		subject,
+		text,
+		html
+	});
 };
 
-/**
- * Sends a verification email to the given address.
- * @param {string} to - Recipient email
- * @param {string} token - Verification token
- * @returns {Promise}
- */
-exports.sendVerificationEmail = async (to, token) => {
-    const baseUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 5000}`;
-    const verifyUrl = `${baseUrl}/api/staff/verify-email?token=${encodeURIComponent(token)}`;
+exports.sendStaffApprovalEmail = async ({ to, username, role }) => {
+	const transporter = getSmtpTransport();
+	const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+	const appName = process.env.APP_NAME || 'uKonek Plus';
+	const backendBaseUrl = process.env.BACKEND_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+	const loginUrl = process.env.FRONTEND_LOGIN_URL || `${backendBaseUrl}/html/index.html`;
 
-    const mailOptions = {
-        from: `"U-Konek+" <${process.env.SMTP_USER}>`,
-        to,
-        subject: 'U-Konek+ — Verify Your Email Address',
-        html: `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;">
-                <div style="text-align: center; margin-bottom: 24px;">
-                    <h1 style="color: #00277F; font-size: 28px; margin: 0;">U-Konek<span style="color: #D0504F;">+</span></h1>
-                </div>
-                <h2 style="color: #1e293b; font-size: 20px; text-align: center;">Verify Your Email Address</h2>
-                <p style="color: #64748b; font-size: 14px; line-height: 1.6; text-align: center;">
-                    Thank you for registering with U-Konek+. Please click the button below to verify your email address and complete your registration.
-                </p>
-                <div style="text-align: center; margin: 28px 0;">
-                    <a href="${verifyUrl}" style="display: inline-block; background: #00277F; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 700; font-size: 14px;">
-                        Verify Email
-                    </a>
-                </div>
-                <p style="color: #94a3b8; font-size: 12px; text-align: center;">
-                    This link will expire in 24 hours. If you did not create an account, please ignore this email.
-                </p>
-            </div>
-        `,
-    };
+	const subject = `${appName}: Your staff account has been approved`;
+	const text = [
+		`Hello ${username},`,
+		'',
+		'Good news. Your staff account has been approved by the administrator.',
+		`Role: ${role || 'staff'}`,
+		'',
+		`You can now sign in here: ${loginUrl}`,
+		'',
+		`Thank you,`,
+		`${appName} Team`
+	].join('\n');
 
-    return transporter.sendMail(mailOptions);
+	const html = `
+		<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
+			<p>Hello <strong>${username}</strong>,</p>
+			<p>Good news. Your staff account has been approved by the administrator.</p>
+			<p><strong>Role:</strong> ${role || 'staff'}</p>
+			<p>
+				<a
+					href="${loginUrl}"
+					style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 6px;"
+				>
+					Go to Login
+				</a>
+			</p>
+			<p>If the button does not work, copy and paste this URL into your browser:</p>
+			<p><a href="${loginUrl}">${loginUrl}</a></p>
+			<p>Thank you,<br/>${appName} Team</p>
+		</div>
+	`;
+
+	await transporter.sendMail({
+		from,
+		to,
+		subject,
+		text,
+		html
+	});
+};
+
+exports.sendStaffPasswordResetEmail = async ({ to, username, resetUrl, expiresMinutes = 60 }) => {
+	const transporter = getSmtpTransport();
+	const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+	const appName = process.env.APP_NAME || 'uKonek Plus';
+
+	const subject = `${appName}: Reset your password`;
+	const text = [
+		`Hello ${username},`,
+		'',
+		`We received a request to reset your password for ${appName}.`,
+		`Open this link to set a new password (valid for ${expiresMinutes} minutes):`,
+		resetUrl,
+		'',
+		'If you did not request this, you can ignore this email.'
+	].join('\n');
+
+	const html = `
+		<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
+			<p>Hello <strong>${username}</strong>,</p>
+			<p>We received a request to reset your password for <strong>${appName}</strong>.</p>
+			<p>This link is valid for ${expiresMinutes} minutes.</p>
+			<p>
+				<a
+					href="${resetUrl}"
+					style="display: inline-block; background: #1d4ed8; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 6px;"
+				>
+					Reset Password
+				</a>
+			</p>
+			<p>If the button does not work, copy and paste this URL into your browser:</p>
+			<p><a href="${resetUrl}">${resetUrl}</a></p>
+			<p>If you did not request this, you can ignore this email.</p>
+		</div>
+	`;
+
+	await transporter.sendMail({
+		from,
+		to,
+		subject,
+		text,
+		html
+	});
 };

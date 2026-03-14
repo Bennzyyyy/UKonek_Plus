@@ -3,7 +3,37 @@ const burger = document.getElementById('burger');
 const back = document.getElementById('back');
 
 // Handle port mismatch during development (Live Server on 5500, Backend on 5000)
-const API_BASE = window.location.port === '5500' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.port === '5500'
+  ? `${window.location.protocol}//${window.location.hostname}:5000`
+  : '';
+
+function showToast(message, type = 'info') {
+  const containerId = 'toast-container';
+  let container = document.getElementById(containerId);
+
+  if (!container) {
+    container = document.createElement('div');
+    container.id = containerId;
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      toast.remove();
+    }, 240);
+  }, 4200);
+}
 
 function state() {
   if (!sidebar) return;
@@ -48,9 +78,37 @@ state();
 
 const logoutBtn = document.getElementById('logout-btn');
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', () => {
-    window.location.href = '/';
+  logoutBtn.addEventListener('click', async () => {
+    try {
+      await fetch(`${API_BASE}/api/staff/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      window.location.href = '/html/index.html';
+    }
   });
+}
+
+async function ensureAuthenticatedSession() {
+  try {
+    const response = await fetch(`${API_BASE}/api/staff/session`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      window.location.href = '/html/index.html';
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Session check failed:', error);
+    window.location.href = '/html/index.html';
+    return false;
+  }
 }
 
 // Search input handler
@@ -82,6 +140,18 @@ const dropdownItems = document.querySelectorAll('.dropdown-item');
 const dashboardSection = document.getElementById('dashboard-section');
 const usersSection = document.getElementById('users-section');
 
+const statTotalStaff = document.getElementById('stat-total-staff');
+const statPendingStaff = document.getElementById('stat-pending-staff');
+const statDoctors = document.getElementById('stat-doctors');
+const statActiveStaff = document.getElementById('stat-active-staff');
+const dashboardPendingPreview = document.getElementById('dashboard-pending-preview');
+const dashboardActivePreview = document.getElementById('dashboard-active-preview');
+const dashboardLastSync = document.getElementById('dashboard-last-sync');
+
+const dashRefreshBtn = document.getElementById('dash-refresh-btn');
+const dashOpenPendingBtn = document.getElementById('dash-open-pending-btn');
+const refreshAccountsBtn = document.getElementById('refresh-accounts-btn');
+
 function hideAllSections() {
   // add the hidden class everywhere instead of fiddling with style.display;
   // .hidden has !important so inline styles would lose to it
@@ -89,9 +159,12 @@ function hideAllSections() {
   if (usersSection) usersSection.classList.add('hidden');
   // Hide all subsections
   const accountMgmt = document.getElementById('account-management');
-  const accountReg = document.getElementById('account-registration');
   if (accountMgmt) accountMgmt.classList.add('hidden');
-  if (accountReg) accountReg.classList.add('hidden');
+}
+
+function clearActiveNav() {
+  navLinks.forEach((link) => link.classList.remove('is-active'));
+  if (navBtn) navBtn.classList.remove('is-active');
 }
 
 navLinks.forEach(link => {
@@ -99,6 +172,8 @@ navLinks.forEach(link => {
     e.preventDefault();
     const section = link.getAttribute('data-section');
     hideAllSections();
+    clearActiveNav();
+    link.classList.add('is-active');
     if (section === 'dashboard' && dashboardSection) {
       dashboardSection.classList.remove('hidden');
     }
@@ -111,20 +186,87 @@ dropdownItems.forEach(item => {
     e.preventDefault();
     const section = item.getAttribute('data-section');
     hideAllSections();
+    clearActiveNav();
+    if (navBtn) navBtn.classList.add('is-active');
     if (usersSection) usersSection.classList.remove('hidden');
     const subsection = document.getElementById(section);
     if (subsection) subsection.classList.remove('hidden');
   });
 });
 
+const dashboardLink = document.querySelector('.nav-item[data-section="dashboard"]');
+if (dashboardLink) {
+  dashboardLink.classList.add('is-active');
+}
+
 // Stored accounts (identifier -> account data)
 const storedAccounts = new Map();
+let latestStaffList = [];
+let latestPendingList = [];
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
+
+function renderDashboardInsights() {
+  if (statTotalStaff) statTotalStaff.textContent = String(latestStaffList.length);
+  if (statPendingStaff) statPendingStaff.textContent = String(latestPendingList.length);
+
+  const doctorsCount = latestStaffList.filter((user) => String(user.role || '').toLowerCase() === 'doctor').length;
+  if (statDoctors) statDoctors.textContent = String(doctorsCount);
+
+  const activeCount = latestStaffList.filter((user) => String(user.status || '').toLowerCase() === 'active').length;
+  if (statActiveStaff) statActiveStaff.textContent = String(activeCount);
+
+  if (dashboardPendingPreview) {
+    const rows = latestPendingList.slice(0, 5);
+    dashboardPendingPreview.innerHTML = rows.length
+      ? rows.map((user) => `
+          <tr>
+            <td class="table-cell">${user.username || '—'}</td>
+            <td class="table-cell">${user.employee_id || '—'}</td>
+            <td class="table-cell">${user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—'}</td>
+            <td class="table-cell">${formatDateTime(user.created_at)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td class="table-cell" colspan="4">No pending registrations.</td></tr>';
+  }
+
+  if (dashboardActivePreview) {
+    const rows = latestStaffList.slice(0, 5);
+    dashboardActivePreview.innerHTML = rows.length
+      ? rows.map((user) => `
+          <tr>
+            <td class="table-cell">${user.username || '—'}</td>
+            <td class="table-cell">${user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—'}</td>
+            <td class="table-cell"><span class="badge-${String(user.status || '').toLowerCase()}">${user.status || '—'}</span></td>
+            <td class="table-cell">${formatDateTime(user.created_at)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td class="table-cell" colspan="4">No active accounts found.</td></tr>';
+  }
+
+  if (dashboardLastSync) {
+    dashboardLastSync.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
+  }
+}
+
+function openUsersSubsection(subsectionId) {
+  hideAllSections();
+  if (usersSection) usersSection.classList.remove('hidden');
+  const subsection = document.getElementById(subsectionId);
+  if (subsection) subsection.classList.remove('hidden');
+}
 
 async function loadStaffData() {
   try {
-    const response = await fetch(`${API_BASE}/api/staff`);
+    const response = await fetch(`${API_BASE}/api/staff`, { credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch staff');
     const staffList = await response.json();
+    latestStaffList = staffList;
 
     const accountsTbody = document.getElementById('accounts-tbody');
     if (accountsTbody) {
@@ -147,6 +289,8 @@ async function loadStaffData() {
         attachAccountRowListener(row);
       });
     }
+
+    renderDashboardInsights();
   } catch (error) {
     console.error('Error loading staff:', error);
   }
@@ -154,9 +298,10 @@ async function loadStaffData() {
 
 async function loadPendingStaffData() {
   try {
-    const response = await fetch(`${API_BASE}/api/staff/pending`);
+    const response = await fetch(`${API_BASE}/api/staff/pending`, { credentials: 'include' });
     if (!response.ok) throw new Error('Failed to fetch pending staff');
     const pendingList = await response.json();
+    latestPendingList = pendingList;
 
     const pendingTbody = document.getElementById('pending-tbody');
     if (pendingTbody) {
@@ -179,14 +324,42 @@ async function loadPendingStaffData() {
         attachPendingRowListener(row);
       });
     }
+
+    renderDashboardInsights();
   } catch (error) {
     console.error('Error loading pending staff:', error);
   }
 }
 
-// Initial load
-loadStaffData();
-loadPendingStaffData();
+// Initial load (after auth check)
+async function initDashboardData() {
+  const isAuthenticated = await ensureAuthenticatedSession();
+  if (!isAuthenticated) return;
+  await Promise.all([loadStaffData(), loadPendingStaffData()]);
+}
+
+initDashboardData();
+
+if (dashRefreshBtn) {
+  dashRefreshBtn.addEventListener('click', async () => {
+    await Promise.all([loadStaffData(), loadPendingStaffData()]);
+    showToast('Dashboard data refreshed.', 'info');
+  });
+}
+
+if (dashOpenPendingBtn) {
+  dashOpenPendingBtn.addEventListener('click', () => {
+    openUsersSubsection('account-management');
+    if (tabPending) tabPending.click();
+  });
+}
+
+if (refreshAccountsBtn) {
+  refreshAccountsBtn.addEventListener('click', async () => {
+    await Promise.all([loadStaffData(), loadPendingStaffData()]);
+    showToast('Account tables refreshed.', 'info');
+  });
+}
 
 // Utility validation functions
 function validatePassword(pw) {
@@ -208,68 +381,6 @@ function calculateAge(birthIso) {
   const m = now.getMonth() - b.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
   return age;
-}
-
-// Role-specific fields for dashboard registration
-const regRoleDash = document.getElementById('reg-role-dash');
-const doctorFieldsDash = document.getElementById('doctor-fields-dash');
-if (regRoleDash && doctorFieldsDash) {
-  regRoleDash.addEventListener('change', () => {
-    doctorFieldsDash.style.display = regRoleDash.value === 'doctor' ? 'block' : 'none';
-  });
-}
-
-// Registration form handler (internal registration)
-const registrationForm = document.getElementById('registration-form');
-if (registrationForm) {
-  registrationForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const username = document.getElementById('reg-username-dash').value.trim();
-    const employee_id = document.getElementById('reg-employee-id-dash').value.trim();
-    const role = document.getElementById('reg-role-dash').value;
-    const password = document.getElementById('reg-password-dash').value;
-    const confirmPassword = document.getElementById('reg-confirm-password-dash').value;
-    const specialization = document.getElementById('reg-specialization-dash').value.trim();
-    const schedule = document.getElementById('reg-schedule-dash').value.trim();
-    const msg = document.getElementById('registration-msg');
-
-    msg.style.display = 'none';
-    msg.style.color = 'red';
-
-    if (password !== confirmPassword) {
-      msg.textContent = 'Passwords do not match.';
-      msg.style.display = 'block';
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/staff/register-direct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username, employee_id, role, password, confirmPassword, specialization, schedule
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        msg.style.color = 'green';
-        msg.textContent = data.message;
-        msg.style.display = 'block';
-        registrationForm.reset();
-        if (doctorFieldsDash) doctorFieldsDash.style.display = 'none';
-        loadStaffData(); // Refresh active list
-        loadPendingStaffData(); // Refresh pending list just in case
-      } else {
-        msg.textContent = data.message || 'Registration failed.';
-        msg.style.display = 'block';
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      msg.textContent = 'Server connection failed.';
-      msg.style.display = 'block';
-    }
-  });
 }
 
 // Role filter functionality
@@ -373,13 +484,13 @@ function attachPendingRowListener(row) {
       pendingModal.innerHTML = `
         <div class="modal-content">
           <h2 class="modal-title">Pending Registration</h2>
-          <div class="modal-group"><label class="modal-label">Name</label><p id="pending-name" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">M.I.</label><p id="pending-mi" class="modal-text"></p></div>
+          <div class="modal-group"><label class="modal-label">Username</label><p id="pending-username" class="modal-text"></p></div>
+          <div class="modal-group"><label class="modal-label">Employee ID</label><p id="pending-employee-id" class="modal-text"></p></div>
           <div class="modal-group"><label class="modal-label">Email</label><p id="pending-email" class="modal-text"></p></div>
           <div class="modal-group"><label class="modal-label">Role</label><p id="pending-role" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Contact</label><p id="pending-contact" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Address</label><p id="pending-address" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Birthday</label><p id="pending-bday" class="modal-text"></p></div>
+          <div class="modal-group"><label class="modal-label">Specialization</label><p id="pending-specialization" class="modal-text"></p></div>
+          <div class="modal-group"><label class="modal-label">Schedule</label><p id="pending-schedule" class="modal-text"></p></div>
+          <div class="modal-group"><label class="modal-label">Submitted</label><p id="pending-submitted" class="modal-text"></p></div>
           <div class="modal-actions">
             <button id="pending-accept" class="btn btn-confirm">ACCEPT</button>
             <button id="pending-reject" class="btn btn-delete">REJECT</button>
@@ -401,14 +512,28 @@ function attachPendingRowListener(row) {
       });
     }
 
+    let scheduleText = '—';
+    if (stored.schedule) {
+      try {
+        const scheduleData = typeof stored.schedule === 'string' ? JSON.parse(stored.schedule) : stored.schedule;
+        if (scheduleData && Array.isArray(scheduleData.days) && scheduleData.days.length > 0) {
+          const startHour = Number.isFinite(scheduleData.startHour) ? `${scheduleData.startHour}:00` : '?';
+          const endHour = Number.isFinite(scheduleData.endHour) ? `${scheduleData.endHour}:00` : '?';
+          scheduleText = `${scheduleData.days.join(', ')} (${startHour} - ${endHour})`;
+        }
+      } catch (error) {
+        scheduleText = String(stored.schedule);
+      }
+    }
+
     // set values
-    document.getElementById('pending-name').textContent = stored.username || '';
-    document.getElementById('pending-mi').textContent = '—';
-    document.getElementById('pending-email').textContent = stored.employee_id || '';
+    document.getElementById('pending-username').textContent = stored.username || '—';
+    document.getElementById('pending-employee-id').textContent = stored.employee_id || '—';
+    document.getElementById('pending-email').textContent = stored.email || '—';
     document.getElementById('pending-role').textContent = stored.role ? (stored.role.charAt(0).toUpperCase() + stored.role.slice(1)) : '';
-    document.getElementById('pending-contact').textContent = '—';
-    document.getElementById('pending-address').textContent = '—';
-    document.getElementById('pending-bday').textContent = '—';
+    document.getElementById('pending-specialization').textContent = stored.specialization || '—';
+    document.getElementById('pending-schedule').textContent = scheduleText;
+    document.getElementById('pending-submitted').textContent = formatDateTime(stored.created_at);
 
     // show modal
     pendingModal.style.display = 'flex';
@@ -443,18 +568,27 @@ function attachPendingRowListener(row) {
     document.getElementById('pending-accept').onclick = () => {
       showConfirm('Accept this registration and activate the account?', async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/staff/approve/${stored.id}`, { method: 'POST' });
+          const res = await fetch(`${API_BASE}/api/staff/approve/${stored.id}`, { method: 'POST', credentials: 'include' });
+          const data = await res.json();
+
           if (res.ok) {
-            alert('Account approved successfully');
+            if (data.notificationEmailSent === true) {
+              const recipient = data.notificationEmailRecipient || 'the registrant';
+              showToast(`Account approved. Notification email sent to ${recipient}.`, 'success');
+            } else if (data.notificationEmailSent === false) {
+              const reason = data.notificationError ? ` Reason: ${data.notificationError}` : '';
+              showToast(`Account approved, but notification email failed.${reason}`, 'warning');
+            } else {
+              showToast(data.message || 'Account approved successfully.', 'success');
+            }
             loadStaffData();
             loadPendingStaffData();
           } else {
-            const data = await res.json();
-            alert(data.message || 'Approval failed');
+            showToast(data.message || 'Approval failed', 'error');
           }
         } catch (err) {
           console.error(err);
-          alert('Server error');
+          showToast('Server error', 'error');
         }
       });
     };
@@ -462,17 +596,17 @@ function attachPendingRowListener(row) {
     document.getElementById('pending-reject').onclick = () => {
       showConfirm('Reject this registration? This will permanently delete the submission.', async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/staff/reject/${stored.id}`, { method: 'POST' });
+          const res = await fetch(`${API_BASE}/api/staff/reject/${stored.id}`, { method: 'POST', credentials: 'include' });
+          const data = await res.json();
           if (res.ok) {
-            alert('Account rejected');
+            showToast(data.message || 'Account rejected', 'success');
             loadPendingStaffData();
           } else {
-            const data = await res.json();
-            alert(data.message || 'Rejection failed');
+            showToast(data.message || 'Rejection failed', 'error');
           }
         } catch (err) {
           console.error(err);
-          alert('Server error');
+          showToast('Server error', 'error');
         }
       });
     };

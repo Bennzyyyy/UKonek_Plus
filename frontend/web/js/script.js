@@ -3,7 +3,11 @@ const tabRegister = document.getElementById('tab-register');
 const tabReset = document.getElementById('tab-reset');
 
 // Handle port mismatch during development (Live Server on 5500, Backend on 5000)
-const API_BASE = window.location.port === '5500' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.port === '5500'
+    ? `${window.location.protocol}//${window.location.hostname}:5000`
+    : '';
+const LOGIN_PAGE_URL = API_BASE ? `${API_BASE}/html/index.html` : '/html/index.html';
+const DASHBOARD_PAGE_URL = API_BASE ? `${API_BASE}/html/dashboard.html` : '/html/dashboard.html';
 
 const loginPanel = document.getElementById('login-panel');
 const registerPanel = document.getElementById('register-panel');
@@ -59,6 +63,10 @@ if (modalLoginBtn) {
     modalLoginBtn.addEventListener('click', () => {
         const successModal = document.getElementById('registration-success-modal');
         successModal.classList.add('hidden');
+        if (window.location.port === '5500') {
+            window.location.href = LOGIN_PAGE_URL;
+            return;
+        }
         tabLogin.click();
     });
 }
@@ -183,6 +191,40 @@ function validateScheduleHours() {
     return !hasError;
 }
 
+const registerSubmitBtn = document.getElementById('register-submit-btn');
+const registerSubmitLabel = registerSubmitBtn ? registerSubmitBtn.querySelector('.btn-label') : null;
+const loginSubmitBtn = document.getElementById('login-submit-btn');
+const loginSubmitLabel = loginSubmitBtn ? loginSubmitBtn.querySelector('.btn-label') : null;
+const resetSubmitBtn = document.getElementById('reset-submit-btn');
+const resetSubmitLabel = resetSubmitBtn ? resetSubmitBtn.querySelector('.btn-label') : null;
+
+function setRegisterLoading(isLoading) {
+    if (!registerSubmitBtn) return;
+    registerSubmitBtn.disabled = isLoading;
+    registerSubmitBtn.classList.toggle('is-loading', isLoading);
+    if (registerSubmitLabel) {
+        registerSubmitLabel.textContent = isLoading ? 'CREATING ACCOUNT...' : 'REGISTER AS PERSONNEL';
+    }
+}
+
+function setLoginLoading(isLoading) {
+    if (!loginSubmitBtn) return;
+    loginSubmitBtn.disabled = isLoading;
+    loginSubmitBtn.classList.toggle('is-loading', isLoading);
+    if (loginSubmitLabel) {
+        loginSubmitLabel.textContent = isLoading ? 'SIGNING IN...' : 'SIGN IN';
+    }
+}
+
+function setResetLoading(isLoading) {
+    if (!resetSubmitBtn) return;
+    resetSubmitBtn.disabled = isLoading;
+    resetSubmitBtn.classList.toggle('is-loading', isLoading);
+    if (resetSubmitLabel) {
+        resetSubmitLabel.textContent = isLoading ? 'Sending...' : 'Send reset link';
+    }
+}
+
 // Registration Form Handler
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -267,9 +309,12 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         return;
     }
 
+    setRegisterLoading(true);
+
     try {
         const response = await fetch(`${API_BASE}/api/staff/register`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 username,
@@ -299,6 +344,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         console.error('Error:', error);
         err.textContent = 'Server connection failed.';
         err.style.display = 'block';
+    } finally {
+        setRegisterLoading(false);
     }
 });
 
@@ -317,9 +364,12 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         return;
     }
 
+    setLoginLoading(true);
+
     try {
         const response = await fetch(`${API_BASE}/api/staff/login`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
@@ -329,7 +379,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         if (response.ok) {
             // Success: Redirect to dashboard or store user info
             console.log('Login successful:', data.user);
-            window.location.href = '/html/dashboard.html';
+            window.location.href = DASHBOARD_PAGE_URL;
         } else {
             err.textContent = data.message || 'Login failed.';
             err.style.display = 'block';
@@ -338,14 +388,59 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         console.error('Error:', error);
         err.textContent = 'Server connection failed.';
         err.style.display = 'block';
+    } finally {
+        setLoginLoading(false);
     }
 });
 
 // Reset Form Handler
-document.getElementById('reset-form').addEventListener('submit', (e) => {
+document.getElementById('reset-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('reset-msg');
-    msg.style.display = 'block';
-    msg.style.color = 'green';
-    msg.textContent = 'If the email exists, a reset link will be sent.';
+    const resetEmail = document.getElementById('reset-email').value.trim();
+
+    msg.style.display = 'none';
+
+    if (!resetEmail) {
+        msg.style.display = 'block';
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Please enter your email address.';
+        return;
+    }
+
+    if (!validateEmail(resetEmail)) {
+        msg.style.display = 'block';
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Please enter a valid email address.';
+        return;
+    }
+
+    setResetLoading(true);
+
+    try {
+        const response = await fetch(`${API_BASE}/api/staff/forgot-password`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: resetEmail })
+        });
+
+        const data = await response.json();
+
+        msg.style.display = 'block';
+        if (response.ok) {
+            msg.style.color = '#15803d';
+            msg.textContent = data.message || 'If the email exists, a reset link has been sent.';
+        } else {
+            msg.style.color = '#dc2626';
+            msg.textContent = data.message || 'Failed to request password reset.';
+        }
+    } catch (error) {
+        console.error('Reset request error:', error);
+        msg.style.display = 'block';
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Server connection failed.';
+    } finally {
+        setResetLoading(false);
+    }
 });
