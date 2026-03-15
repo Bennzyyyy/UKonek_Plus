@@ -43,13 +43,17 @@ function initializeDatabase() {
         const staffSql = `
             CREATE TABLE staff (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                first_name VARCHAR(100) DEFAULT NULL,
+                middle_name VARCHAR(100) DEFAULT NULL,
+                last_name VARCHAR(100) DEFAULT NULL,
+                birthday DATE DEFAULT NULL,
+                gender VARCHAR(20) DEFAULT NULL,
                 username VARCHAR(100) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 employee_id VARCHAR(100) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE NOT NULL,
                 role VARCHAR(100) NOT NULL,
-                specialization VARCHAR(255) DEFAULT NULL,
-                schedule VARCHAR(255) DEFAULT NULL,
+                consent_given TINYINT(1) NOT NULL DEFAULT 0,
                 status VARCHAR(50) DEFAULT 'Active',
                 password_reset_token_hash VARCHAR(64) DEFAULT NULL,
                 password_reset_token_expires DATETIME DEFAULT NULL,
@@ -60,13 +64,17 @@ function initializeDatabase() {
         const pendingSql = `
             CREATE TABLE pending_staff (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                first_name VARCHAR(100) NOT NULL,
+                middle_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                birthday DATE NOT NULL,
+                gender VARCHAR(20) NOT NULL,
                 username VARCHAR(100) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 employee_id VARCHAR(100) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE NOT NULL,
                 role VARCHAR(100) NOT NULL,
-                specialization VARCHAR(255) DEFAULT NULL,
-                schedule VARCHAR(255) DEFAULT NULL,
+                consent_given TINYINT(1) NOT NULL DEFAULT 0,
                 status VARCHAR(50) DEFAULT 'Pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -75,13 +83,17 @@ function initializeDatabase() {
         const verificationSql = `
             CREATE TABLE staff_email_verifications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(100) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
+                first_name VARCHAR(100) NOT NULL,
+                middle_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                birthday DATE NOT NULL,
+                gender VARCHAR(20) NOT NULL,
+                username VARCHAR(100) UNIQUE DEFAULT NULL,
+                password_hash VARCHAR(255) DEFAULT NULL,
                 employee_id VARCHAR(100) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE NOT NULL,
                 role VARCHAR(100) NOT NULL,
-                specialization VARCHAR(255) DEFAULT NULL,
-                schedule VARCHAR(255) DEFAULT NULL,
+                consent_given TINYINT(1) NOT NULL DEFAULT 0,
                 verification_token_hash VARCHAR(64) NOT NULL,
                 verification_token_expires DATETIME NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

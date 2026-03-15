@@ -14,6 +14,7 @@ const {
 
 let staffEmailVerificationTableReady = false;
 let staffPasswordResetSchemaReady = false;
+let staffProfileSchemaReady = false;
 
 async function ensureStaffEmailVerificationTable() {
     if (staffEmailVerificationTableReady) {
@@ -23,13 +24,17 @@ async function ensureStaffEmailVerificationTable() {
     await db.query(`
         CREATE TABLE IF NOT EXISTS staff_email_verifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(100) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
+            first_name VARCHAR(100) NOT NULL,
+            middle_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            birthday DATE NOT NULL,
+            gender VARCHAR(20) NOT NULL,
+            username VARCHAR(100) UNIQUE DEFAULT NULL,
+            password_hash VARCHAR(255) DEFAULT NULL,
             employee_id VARCHAR(100) UNIQUE NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
             role VARCHAR(100) NOT NULL,
-            specialization VARCHAR(255) DEFAULT NULL,
-            schedule VARCHAR(255) DEFAULT NULL,
+            consent_given TINYINT(1) NOT NULL DEFAULT 0,
             verification_token_hash VARCHAR(64) NOT NULL,
             verification_token_expires DATETIME NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -69,6 +74,96 @@ async function ensureStaffPasswordResetSchema() {
     }
 
     staffPasswordResetSchemaReady = true;
+}
+
+async function ensureStaffProfileSchema() {
+    if (staffProfileSchemaReady) {
+        return;
+    }
+
+    const tableColumnDefs = {
+        staff: {
+            first_name: 'ADD COLUMN first_name VARCHAR(100) NULL',
+            middle_name: 'ADD COLUMN middle_name VARCHAR(100) NULL',
+            last_name: 'ADD COLUMN last_name VARCHAR(100) NULL',
+            birthday: 'ADD COLUMN birthday DATE NULL',
+            gender: 'ADD COLUMN gender VARCHAR(20) NULL',
+            consent_given: 'ADD COLUMN consent_given TINYINT(1) NOT NULL DEFAULT 0'
+        },
+        pending_staff: {
+            first_name: "ADD COLUMN first_name VARCHAR(100) NOT NULL DEFAULT ''",
+            middle_name: "ADD COLUMN middle_name VARCHAR(100) NOT NULL DEFAULT ''",
+            last_name: "ADD COLUMN last_name VARCHAR(100) NOT NULL DEFAULT ''",
+            birthday: "ADD COLUMN birthday DATE NOT NULL DEFAULT '1970-01-01'",
+            gender: "ADD COLUMN gender VARCHAR(20) NOT NULL DEFAULT 'Unspecified'",
+            consent_given: 'ADD COLUMN consent_given TINYINT(1) NOT NULL DEFAULT 0'
+        },
+        staff_email_verifications: {
+            first_name: "ADD COLUMN first_name VARCHAR(100) NOT NULL DEFAULT ''",
+            middle_name: "ADD COLUMN middle_name VARCHAR(100) NOT NULL DEFAULT ''",
+            last_name: "ADD COLUMN last_name VARCHAR(100) NOT NULL DEFAULT ''",
+            birthday: "ADD COLUMN birthday DATE NOT NULL DEFAULT '1970-01-01'",
+            gender: "ADD COLUMN gender VARCHAR(20) NOT NULL DEFAULT 'Unspecified'",
+            username: 'ADD COLUMN username VARCHAR(100) NULL',
+            password_hash: 'ADD COLUMN password_hash VARCHAR(255) NULL',
+            consent_given: 'ADD COLUMN consent_given TINYINT(1) NOT NULL DEFAULT 0'
+        }
+    };
+
+    for (const [tableName, definitions] of Object.entries(tableColumnDefs)) {
+        const [columns] = await db.query(
+            `
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = ?
+                  AND TABLE_NAME = ?
+            `,
+            [process.env.DB_NAME, tableName]
+        );
+
+        const existing = new Set(columns.map((column) => column.COLUMN_NAME));
+        const addStatements = [];
+
+        for (const [columnName, addSql] of Object.entries(definitions)) {
+            if (!existing.has(columnName)) {
+                addStatements.push(addSql);
+            }
+        }
+
+        if (addStatements.length > 0) {
+            await db.query(`ALTER TABLE ${tableName} ${addStatements.join(', ')}`);
+        }
+    }
+
+    // Legacy compatibility: older schema had staged username/password as NOT NULL.
+    const [verificationColumns] = await db.query(
+        `
+            SELECT COLUMN_NAME, IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ?
+              AND TABLE_NAME = 'staff_email_verifications'
+              AND COLUMN_NAME IN ('username', 'password_hash')
+        `,
+        [process.env.DB_NAME]
+    );
+
+    const nullabilityByColumn = new Map(
+        verificationColumns.map((column) => [column.COLUMN_NAME, column.IS_NULLABLE])
+    );
+
+    const modifyStatements = [];
+    if (nullabilityByColumn.get('username') === 'NO') {
+        modifyStatements.push('MODIFY COLUMN username VARCHAR(100) NULL');
+    }
+    if (nullabilityByColumn.get('password_hash') === 'NO') {
+        modifyStatements.push('MODIFY COLUMN password_hash VARCHAR(255) NULL');
+    }
+
+    if (modifyStatements.length > 0) {
+        await db.query(`ALTER TABLE staff_email_verifications ${modifyStatements.join(', ')}`);
+    }
+
+    staffProfileSchemaReady = true;
 }
 
 function createVerificationTokenPayload() {
@@ -188,73 +283,242 @@ function sendVerificationResult(req, res, { statusCode, success, title, message 
     `);
 }
 
-// Register a new staff account (Medical Personnel) - Goes to PENDING
+function renderAccountSetupPage({ token, firstName = '', lastName = '', role = '' }) {
+    const safeToken = String(token || '').replace(/"/g, '&quot;');
+    const safeFirstName = String(firstName || '').replace(/</g, '&lt;');
+    const safeLastName = String(lastName || '').replace(/</g, '&lt;');
+    const safeRole = String(role || '').replace(/</g, '&lt;');
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Account Credentials</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f2f6ff; margin: 0; padding: 24px; color: #1f2937; }
+        .card { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 18px 40px rgba(15,23,42,0.12); }
+        h1 { margin: 0 0 10px; font-size: 24px; }
+        .muted { margin: 0 0 18px; color: #64748b; font-size: 14px; line-height: 1.6; }
+        .field { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 6px; font-size: 13px; color: #334155; font-weight: 600; }
+        input[type="text"], input[type="password"] { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #d9e1f3; border-radius: 8px; font-size: 14px; }
+        .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #334155; }
+        .btn { margin-top: 12px; width: 100%; border: 0; border-radius: 10px; background: #1d4ed8; color: #fff; font-weight: 700; padding: 11px 14px; cursor: pointer; }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .error { display: none; margin-top: 10px; font-size: 13px; color: #dc2626; }
+        .success { display: none; margin-top: 10px; font-size: 13px; color: #15803d; }
+        .modal { position: fixed; inset: 0; background: rgba(15,23,42,0.45); display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-card { width: 100%; max-width: 420px; background: #fff; border-radius: 12px; padding: 22px; text-align: center; box-shadow: 0 20px 48px rgba(15,23,42,0.2); }
+        .modal-title { margin: 0 0 8px; font-size: 20px; color: #0f172a; }
+        .modal-copy { margin: 0; color: #64748b; line-height: 1.6; font-size: 14px; }
+        .modal-btn { margin-top: 16px; border: 0; border-radius: 8px; padding: 10px 14px; background: #1d4ed8; color: #fff; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Complete Your Account Setup</h1>
+        <p class="muted">Welcome ${safeFirstName} ${safeLastName}. Your email is verified for role <strong>${safeRole}</strong>. Create your account credentials to continue.</p>
+        <form id="setup-form">
+            <input type="hidden" id="token" value="${safeToken}" />
+            <div class="field">
+                <label for="username">Preferred Username</label>
+                <input id="username" type="text" required minlength="3" maxlength="100" />
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input id="password" type="password" required minlength="6" />
+            </div>
+            <div class="field">
+                <label for="confirmPassword">Confirm Password</label>
+                <input id="confirmPassword" type="password" required minlength="6" />
+            </div>
+            <div class="field consent">
+                <input id="consent" type="checkbox" required />
+                <label for="consent">I confirm that all submitted details are accurate and I agree to wait for admin account approval.</label>
+            </div>
+            <button id="submit-btn" type="submit" class="btn">Create Account</button>
+            <p id="error" class="error"></p>
+        </form>
+    </main>
+
+    <div id="approval-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="approval-modal-title">
+        <div class="modal-card">
+            <h2 id="approval-modal-title" class="modal-title">Account Submitted</h2>
+            <p class="modal-copy">Your account is now pending admin approval. You will receive an email once approved.</p>
+            <button id="approval-modal-btn" class="modal-btn" type="button">Go to Login</button>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('setup-form');
+        const errorEl = document.getElementById('error');
+        const submitBtn = document.getElementById('submit-btn');
+        const approvalModal = document.getElementById('approval-modal');
+        const approvalModalBtn = document.getElementById('approval-modal-btn');
+
+        approvalModalBtn.addEventListener('click', () => {
+            window.location.href = '/html/index.html';
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            errorEl.style.display = 'none';
+
+            const token = document.getElementById('token').value;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const consentGiven = document.getElementById('consent').checked;
+
+            if (!username || !password || !confirmPassword) {
+                errorEl.textContent = 'All fields are required.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (password !== confirmPassword) {
+                errorEl.textContent = 'Passwords do not match.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (password.length < 6) {
+                errorEl.textContent = 'Password must be at least 6 characters.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (!consentGiven) {
+                errorEl.textContent = 'Consent is required to continue.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating account...';
+
+            try {
+                const response = await fetch('/api/staff/complete-registration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, username, password, confirmPassword, consentGiven })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    errorEl.textContent = data.message || 'Unable to complete account setup.';
+                    errorEl.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Create Account';
+                    return;
+                }
+
+                    approvalModal.style.display = 'flex';
+                form.reset();
+                submitBtn.textContent = 'Done';
+                    submitBtn.disabled = true;
+            } catch (error) {
+                errorEl.textContent = 'Server error. Please try again.';
+                errorEl.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Account';
+            }
+        });
+    </script>
+</body>
+</html>
+    `;
+}
+
+// Register staff profile first, then send email verification link.
 exports.registerStaff = async (req, res) => {
     const connection = await db.getConnection();
     let transactionStarted = false;
     try {
         await ensureStaffEmailVerificationTable();
+        await ensureStaffProfileSchema();
 
-        const { username, password, employee_id, email, role, specialization, schedule } = req.body;
+        const {
+            first_name,
+            middle_name,
+            last_name,
+            birthday,
+            gender,
+            employee_id,
+            email,
+            role
+        } = req.body;
 
-        // Check if username, employee_id, or email already exists in active or pending accounts.
+        if (!first_name || !middle_name || !last_name || !birthday || !gender || !employee_id || !email || !role) {
+            return res.status(400).json({
+                message: 'First name, middle name, last name, birthday, gender, employee ID, email, and role are required'
+            });
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const normalizedGender = String(gender).trim();
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return res.status(400).json({ message: 'Invalid email format' });
+        }
+
+        // Check if employee_id or email already exists in active or pending accounts.
         const [existingStaff] = await connection.query(
-            "SELECT id FROM staff WHERE username = ? OR employee_id = ? OR email = ?",
-            [username, employee_id, email]
+            "SELECT id FROM staff WHERE employee_id = ? OR email = ?",
+            [employee_id, normalizedEmail]
         );
 
         const [existingPending] = await connection.query(
-            "SELECT id FROM pending_staff WHERE username = ? OR employee_id = ? OR email = ?",
-            [username, employee_id, email]
+            "SELECT id FROM pending_staff WHERE employee_id = ? OR email = ?",
+            [employee_id, normalizedEmail]
         );
 
         // Check staged registrations waiting for email verification.
         const [existingStaged] = await connection.query(
-            "SELECT id FROM staff_email_verifications WHERE username = ? OR employee_id = ? OR email = ?",
-            [username, employee_id, email]
+            "SELECT id FROM staff_email_verifications WHERE employee_id = ? OR email = ?",
+            [employee_id, normalizedEmail]
         );
 
         if (existingStaff.length > 0) {
-            return res.status(400).json({ message: "Username, Employee ID, or Email already registered" });
+            return res.status(400).json({ message: "Employee ID or Email already registered" });
         }
         if (existingPending.length > 0) {
-            return res.status(400).json({ message: "Username, Employee ID, or Email already pending approval" });
+            return res.status(400).json({ message: "Employee ID or Email already pending approval" });
         }
         if (existingStaged.length > 0) {
             return res.status(400).json({ message: "Registration already submitted. Please verify your email." });
         }
 
-        // Hash the password
-        const password_hash = await hashPassword(password);
         const { token, tokenHash, expiresAt } = createVerificationTokenPayload();
 
         await connection.beginTransaction();
         transactionStarted = true;
 
-        // Stage registration until email is verified.
+        // Stage profile data until email is verified and credentials are created.
         const sql = `
             INSERT INTO staff_email_verifications (
-                username,
-                password_hash,
+                first_name,
+                middle_name,
+                last_name,
+                birthday,
+                gender,
                 employee_id,
                 email,
                 role,
-                specialization,
-                schedule,
                 verification_token_hash,
                 verification_token_expires
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const params = [
-            username,
-            password_hash,
+            String(first_name).trim(),
+            String(middle_name).trim(),
+            String(last_name).trim(),
+            birthday,
+            normalizedGender,
             employee_id,
-            email,
+            normalizedEmail,
             role,
-            role === 'doctor' ? specialization : null,
-            role === 'doctor' ? JSON.stringify(schedule) : null,
             tokenHash,
             expiresAt
         ];
@@ -265,8 +529,8 @@ exports.registerStaff = async (req, res) => {
         const verificationUrl = `${backendBaseUrl}/api/staff/verify-email?token=${token}`;
 
         await sendStaffVerificationEmail({
-            to: email,
-            username,
+            to: normalizedEmail,
+            username: `${String(first_name).trim()} ${String(last_name).trim()}`,
             verificationUrl,
             expiresHours: 24
         });
@@ -352,7 +616,7 @@ exports.registerStaffDirect = async (req, res) => {
 exports.getAllStaff = async (req, res) => {
     try {
         const [staff] = await db.query(
-            "SELECT id, username, email, employee_id, role, status, specialization, schedule, created_at FROM staff ORDER BY id DESC"
+            "SELECT id, first_name, middle_name, last_name, birthday, gender, username, email, employee_id, role, status, consent_given, created_at FROM staff ORDER BY id DESC"
         );
         res.status(200).json(staff);
     } catch (error) {
@@ -365,7 +629,7 @@ exports.getAllStaff = async (req, res) => {
 exports.getPendingStaff = async (req, res) => {
     try {
         const [pending] = await db.query(
-            "SELECT id, username, email, employee_id, role, status, specialization, schedule, created_at FROM pending_staff ORDER BY id DESC"
+            "SELECT id, first_name, middle_name, last_name, birthday, gender, username, email, employee_id, role, status, consent_given, created_at FROM pending_staff ORDER BY id DESC"
         );
         res.status(200).json(pending);
     } catch (error) {
@@ -405,17 +669,34 @@ exports.approveStaff = async (req, res) => {
 
         // 3. Insert into final staff table
         const insertSql = `
-            INSERT INTO staff (username, password_hash, employee_id, email, role, specialization, schedule, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO staff (
+                first_name,
+                middle_name,
+                last_name,
+                birthday,
+                gender,
+                username,
+                password_hash,
+                employee_id,
+                email,
+                role,
+                consent_given,
+                status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const params = [
+            user.first_name,
+            user.middle_name,
+            user.last_name,
+            user.birthday,
+            user.gender,
             user.username,
             user.password_hash,
             user.employee_id,
             user.email,
             user.role,
-            user.specialization,
-            user.schedule,
+            user.consent_given || 0,
             'Active'
         ];
         await connection.query(insertSql, params);
@@ -461,14 +742,14 @@ exports.approveStaff = async (req, res) => {
     }
 };
 
-// Verify pending staff email using token link
+// Verify email token and present credential setup form.
 exports.verifyStaffEmail = async (req, res) => {
     const connection = await db.getConnection();
-    let transactionStarted = false;
     try {
         await ensureStaffEmailVerificationTable();
+        await ensureStaffProfileSchema();
 
-        const token = req.query.token || req.body.token;
+        const token = req.query.token;
 
         if (!token) {
             return sendVerificationResult(req, res, {
@@ -511,37 +792,12 @@ exports.verifyStaffEmail = async (req, res) => {
             });
         }
 
-        await connection.beginTransaction();
-        transactionStarted = true;
-
-        const [alreadyInPending] = await connection.query(
-            "SELECT id FROM pending_staff WHERE username = ? OR employee_id = ? OR email = ?",
-            [staged.username, staged.employee_id, staged.email]
-        );
-
-        if (alreadyInPending.length > 0) {
-            await connection.query("DELETE FROM staff_email_verifications WHERE id = ?", [staged.id]);
-            await connection.commit();
-            transactionStarted = false;
-
-            return sendVerificationResult(req, res, {
-                statusCode: 200,
-                success: true,
-                title: 'Email Already Verified',
-                message: 'Your email is already verified. Please wait for admin approval.'
-            });
-        }
-
         const [alreadyInStaff] = await connection.query(
-            "SELECT id FROM staff WHERE username = ? OR employee_id = ? OR email = ?",
-            [staged.username, staged.employee_id, staged.email]
+            "SELECT id FROM staff WHERE employee_id = ? OR email = ?",
+            [staged.employee_id, staged.email]
         );
 
         if (alreadyInStaff.length > 0) {
-            await connection.query("DELETE FROM staff_email_verifications WHERE id = ?", [staged.id]);
-            await connection.commit();
-            transactionStarted = false;
-
             return sendVerificationResult(req, res, {
                 statusCode: 409,
                 success: false,
@@ -550,46 +806,29 @@ exports.verifyStaffEmail = async (req, res) => {
             });
         }
 
-        await connection.query(
-            `
-                INSERT INTO pending_staff (
-                    username,
-                    password_hash,
-                    employee_id,
-                    email,
-                    role,
-                    specialization,
-                    schedule,
-                    status
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
-                staged.username,
-                staged.password_hash,
-                staged.employee_id,
-                staged.email,
-                staged.role,
-                staged.specialization,
-                staged.schedule,
-                'Pending'
-            ]
+        const [alreadyInPending] = await connection.query(
+            "SELECT id FROM pending_staff WHERE employee_id = ? OR email = ?",
+            [staged.employee_id, staged.email]
         );
 
-        await connection.query("DELETE FROM staff_email_verifications WHERE id = ?", [staged.id]);
-        await connection.commit();
-        transactionStarted = false;
-
-        return sendVerificationResult(req, res, {
-            statusCode: 200,
-            success: true,
-            title: 'Email Verified Successfully',
-            message: 'Your email is verified. Your account is now pending admin approval.'
-        });
-    } catch (error) {
-        if (transactionStarted) {
-            await connection.rollback();
+        if (alreadyInPending.length > 0) {
+            return sendVerificationResult(req, res, {
+                statusCode: 200,
+                success: true,
+                title: 'Already Submitted',
+                message: 'Your account setup is complete and currently pending admin approval.'
+            });
         }
+
+        return res.status(200).send(
+            renderAccountSetupPage({
+                token,
+                firstName: staged.first_name,
+                lastName: staged.last_name,
+                role: staged.role
+            })
+        );
+    } catch (error) {
         console.error('Email verification error:', error);
         return sendVerificationResult(req, res, {
             statusCode: 500,
@@ -597,6 +836,138 @@ exports.verifyStaffEmail = async (req, res) => {
             title: 'Verification Failed',
             message: 'A server error occurred while verifying your email. Please try again later.'
         });
+    } finally {
+        connection.release();
+    }
+};
+
+exports.completeStaffRegistration = async (req, res) => {
+    const connection = await db.getConnection();
+    let transactionStarted = false;
+    try {
+        await ensureStaffEmailVerificationTable();
+        await ensureStaffProfileSchema();
+
+        const { token, username, password, confirmPassword, consentGiven } = req.body;
+
+        if (!token || !username || !password || !confirmPassword) {
+            return res.status(400).json({ message: 'Token, username, password, and confirm password are required' });
+        }
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({ message: 'Passwords do not match' });
+        }
+
+        if (String(password).length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        }
+
+        if (!consentGiven) {
+            return res.status(400).json({ message: 'Consent is required before account creation' });
+        }
+
+        const normalizedUsername = String(username).trim();
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const [stagedRows] = await connection.query(
+            `
+                SELECT *
+                FROM staff_email_verifications
+                WHERE verification_token_hash = ?
+                  AND verification_token_expires > NOW()
+                LIMIT 1
+            `,
+            [tokenHash]
+        );
+
+        if (stagedRows.length === 0) {
+            return res.status(400).json({ message: 'Verification token is invalid or expired' });
+        }
+
+        const staged = stagedRows[0];
+
+        const [usernameTakenInStaff] = await connection.query(
+            'SELECT id FROM staff WHERE username = ? LIMIT 1',
+            [normalizedUsername]
+        );
+        const [usernameTakenInPending] = await connection.query(
+            'SELECT id FROM pending_staff WHERE username = ? LIMIT 1',
+            [normalizedUsername]
+        );
+
+        if (usernameTakenInStaff.length > 0 || usernameTakenInPending.length > 0) {
+            return res.status(409).json({ message: 'Username is already taken' });
+        }
+
+        const [alreadyInPending] = await connection.query(
+            'SELECT id FROM pending_staff WHERE employee_id = ? OR email = ? LIMIT 1',
+            [staged.employee_id, staged.email]
+        );
+        if (alreadyInPending.length > 0) {
+            return res.status(409).json({ message: 'Account is already pending admin approval' });
+        }
+
+        const [alreadyInStaff] = await connection.query(
+            'SELECT id FROM staff WHERE employee_id = ? OR email = ? LIMIT 1',
+            [staged.employee_id, staged.email]
+        );
+        if (alreadyInStaff.length > 0) {
+            return res.status(409).json({ message: 'Account already exists in active staff list' });
+        }
+
+        const passwordHash = await hashPassword(password);
+
+        await connection.beginTransaction();
+        transactionStarted = true;
+
+        await connection.query(
+            `
+                INSERT INTO pending_staff (
+                    first_name,
+                    middle_name,
+                    last_name,
+                    birthday,
+                    gender,
+                    username,
+                    password_hash,
+                    employee_id,
+                    email,
+                    role,
+                    consent_given,
+                    status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+                staged.first_name,
+                staged.middle_name,
+                staged.last_name,
+                staged.birthday,
+                staged.gender,
+                normalizedUsername,
+                passwordHash,
+                staged.employee_id,
+                staged.email,
+                staged.role,
+                1,
+                'Pending'
+            ]
+        );
+
+        await connection.query('DELETE FROM staff_email_verifications WHERE id = ?', [staged.id]);
+
+        await connection.commit();
+        transactionStarted = false;
+
+        return res.status(200).json({
+            message: 'Account credentials saved. Please wait for the admin to approve your account.'
+        });
+    } catch (error) {
+        if (transactionStarted) {
+            await connection.rollback();
+        }
+        console.error('Complete registration error:', error);
+        return res.status(500).json({ message: 'Server error while completing account setup' });
     } finally {
         connection.release();
     }
@@ -620,10 +991,10 @@ exports.rejectStaff = async (req, res) => {
 // Login staff (Medical Personnel)
 exports.loginStaff = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, role } = req.body;
 
-        if (!username || !password) {
-            return res.status(400).json({ message: "Username and password are required" });
+        if (!username || !password || !role) {
+            return res.status(400).json({ message: "Role, username, and password are required" });
         }
 
         // Find user by username
@@ -640,6 +1011,12 @@ exports.loginStaff = async (req, res) => {
 
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        const selectedRole = String(role).trim().toLowerCase();
+        const accountRole = String(user.role || '').trim().toLowerCase();
+        if (selectedRole !== accountRole) {
+            return res.status(401).json({ message: "Selected role does not match this account" });
         }
 
         // Return user info (excluding password)

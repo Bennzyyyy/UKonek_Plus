@@ -8,10 +8,13 @@ const router = express.Router();
 router.get('/', requireAuth, staffController.getAllStaff);
 
 // POST /api/staff/register - Register to pending_staff table
-router.post('/register', validateStaff, staffController.registerStaff);
+router.post('/register', staffController.registerStaff);
 
 // GET /api/staff/verify-email?token=... - Verify staff registration email
 router.get('/verify-email', staffController.verifyStaffEmail);
+
+// POST /api/staff/complete-registration - Create username/password after email verification
+router.post('/complete-registration', staffController.completeStaffRegistration);
 
 // POST /api/staff/register-direct - Register directly to staff table (Active)
 router.post('/register-direct', requireAuth, validateStaff, staffController.registerStaffDirect);

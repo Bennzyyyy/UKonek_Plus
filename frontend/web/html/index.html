@@ -32,7 +32,6 @@
             <div class="tabs" role="tablist" aria-label="Authentication tabs">
                 <button id="tab-login" class="tab active" role="tab" aria-selected="true">Login</button>
                 <button id="tab-register" class="tab" role="tab" aria-selected="false">Register</button>
-                <button id="tab-reset" class="tab" role="tab" aria-selected="false">Reset</button>
             </div>
 
             <!-- Login Panel -->
@@ -65,7 +64,25 @@
                             <span class="btn-label">SIGN IN</span>
                         </button>
                     </div>
+                    <div class="actions" style="margin-top: 8px; justify-content: flex-end;">
+                        <button id="forgot-password-toggle" type="button" class="link">Forgot password?</button>
+                    </div>
                     <div id="login-error" class="note" aria-live="polite" style="display:none"></div>
+                </form>
+
+                <form id="reset-form" novalidate style="display:none; margin-top: 12px;">
+                    <h1 class="reminders" style="margin: 0 0 10px; font-size: 14px;">Enter your email and we'll send a password reset link.</h1>
+                    <div class="field">
+                        <label class="inputLabel" for="reset-email">Email</label>
+                        <input id="reset-email" type="email" placeholder="your-email@example.com" required />
+                    </div>
+                    <div class="actions">
+                        <button class="btn" type="submit" id="reset-submit-btn">
+                            <span class="btn-spinner" aria-hidden="true"></span>
+                            <span class="btn-label">Send reset link</span>
+                        </button>
+                    </div>
+                    <div id="reset-msg" class="small" aria-live="polite" style="display:none"></div>
                 </form>
             </div>
 
@@ -73,8 +90,33 @@
             <div id="register-panel" style="display:none">
                 <form id="register-form" novalidate>
                     <div class="field">
-                        <label class="inputLabel" for="reg-username">Username</label>
-                        <input id="reg-username" type="text" placeholder="Choose a username" required />
+                        <label class="inputLabel" for="reg-first-name">First Name</label>
+                        <input id="reg-first-name" type="text" placeholder="Enter your first name" required />
+                    </div>
+
+                    <div class="field">
+                        <label class="inputLabel" for="reg-middle-name">Middle Name</label>
+                        <input id="reg-middle-name" type="text" placeholder="Enter your middle name" required />
+                    </div>
+
+                    <div class="field">
+                        <label class="inputLabel" for="reg-last-name">Last Name</label>
+                        <input id="reg-last-name" type="text" placeholder="Enter your last name" required />
+                    </div>
+
+                    <div class="field">
+                        <label class="inputLabel" for="reg-birthday">Birthday</label>
+                        <input id="reg-birthday" type="date" required />
+                    </div>
+
+                    <div class="field">
+                        <label class="inputLabel" for="reg-gender">Gender</label>
+                        <select id="reg-gender" required>
+                            <option value="">Select gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
                     </div>
 
                     <div class="field">
@@ -98,74 +140,10 @@
                         </select>
                     </div>
 
-                    <!-- Doctor Specific Fields -->
-                    <div id="doctor-fields" style="display:none">
-                        <div class="field">
-                            <label class="inputLabel" for="reg-specialization">Specialization</label>
-                            <input id="reg-specialization" type="text" placeholder="e.g. Cardiology" />
-                        </div>
-                        <div class="field">
-                            <label class="inputLabel">Schedule Days</label>
-                            <div class="schedule-days-container">
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Monday" />
-                                    <span>Mon</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Tuesday" />
-                                    <span>Tue</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Wednesday" />
-                                    <span>Wed</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Thursday" />
-                                    <span>Thu</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Friday" />
-                                    <span>Fri</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Saturday" />
-                                    <span>Sat</span>
-                                </label>
-                                <label class="day-pill">
-                                    <input type="checkbox" name="schedule-day" value="Sunday" />
-                                    <span>Sun</span>
-                                </label>
-                            </div>
-                            <div id="err-schedule-days" class="field-error note hidden"></div>
-                        </div>
-                        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                            <div class="field" style="flex: 1;">
-                                <label class="inputLabel" for="reg-schedule-start">Start Hour</label>
-                                <input id="reg-schedule-start" type="number" min="0" max="23" placeholder="8" />
-                                <div id="err-schedule-start" class="field-error note hidden"></div>
-                            </div>
-                            <div class="field" style="flex: 1;">
-                                <label class="inputLabel" for="reg-schedule-end">End Hour</label>
-                                <input id="reg-schedule-end" type="number" min="0" max="23" placeholder="17" />
-                                <div id="err-schedule-end" class="field-error note hidden"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="field">
-                        <label class="inputLabel" for="reg-password">Password</label>
-                        <input id="reg-password" type="password" placeholder="Min. 6 characters" required />
-                    </div>
-
-                    <div class="field">
-                        <label class="inputLabel" for="reg-confirm-password">Confirm Password</label>
-                        <input id="reg-confirm-password" type="password" placeholder="Repeat your password" required />
-                    </div>
-
                     <div class="actions">
                         <button type="submit" class="btn" id="register-submit-btn">
                             <span class="btn-spinner" aria-hidden="true"></span>
-                            <span class="btn-label">REGISTER AS PERSONNEL</span>
+                            <span class="btn-label">SEND VERIFICATION EMAIL</span>
                         </button>
                     </div>
                     <div id="register-error" class="note" aria-live="polite" style="display:none"></div>
@@ -173,24 +151,6 @@
                 </form>
             </div>
 
-            <!-- Reset Panel -->
-            <div id="reset-panel" style="display:none">
-                <form id="reset-form" novalidate>
-                    <h1 class="reminders">Enter your email address and we'll send you a link to reset your password.
-                    </h1>
-                    <div class="field">
-                        <label class="inputLabel" for="reset-email">Email</label>
-                        <input id="reset-email" type="email" placeholder="your-email@example.com" required />
-                    </div>
-                    <div class="actions">
-                        <button class="btn" type="submit" id="reset-submit-btn">
-                            <span class="btn-spinner" aria-hidden="true"></span>
-                            <span class="btn-label">Send reset link</span>
-                        </button>
-                    </div>
-                    <div id="reset-msg" class="small" aria-live="polite" style="display:none"></div>
-                </form>
-            </div>
         </div>
     </div>
 
@@ -199,7 +159,7 @@
         <div class="modal-box">
             <div class="modal-icon">✓</div>
             <h2 class="modal-heading">Verify Your Email</h2>
-            <p class="modal-message">Registration submitted. We will send a verification link to your Gmail account. Please verify your email to continue to admin approval.</p>
+            <p class="modal-message">Registration submitted. Check your email, verify your account, complete credential setup with consent, then wait for admin approval.</p>
             <button id="modal-login-btn" class="btn modal-btn">Go to Login</button>
         </div>
     </div>

@@ -1,6 +1,5 @@
 const tabLogin = document.getElementById('tab-login');
 const tabRegister = document.getElementById('tab-register');
-const tabReset = document.getElementById('tab-reset');
 
 // Handle port mismatch during development (Live Server on 5500, Backend on 5000)
 const API_BASE = window.location.port === '5500'
@@ -11,7 +10,8 @@ const DASHBOARD_PAGE_URL = API_BASE ? `${API_BASE}/html/dashboard.html` : '/html
 
 const loginPanel = document.getElementById('login-panel');
 const registerPanel = document.getElementById('register-panel');
-const resetPanel = document.getElementById('reset-panel');
+const forgotPasswordToggle = document.getElementById('forgot-password-toggle');
+const resetForm = document.getElementById('reset-form');
 
 const panelTitle = document.getElementById('panel-title');
 const panelDesc = document.getElementById('panel-desc');
@@ -19,15 +19,12 @@ const panelDesc = document.getElementById('panel-desc');
 function hideAllPanels() {
     loginPanel.style.display = 'none';
     registerPanel.style.display = 'none';
-    resetPanel.style.display = 'none';
 
     tabLogin.classList.remove('active');
     tabRegister.classList.remove('active');
-    tabReset.classList.remove('active');
 
     tabLogin.setAttribute('aria-selected', 'false');
     tabRegister.setAttribute('aria-selected', 'false');
-    tabReset.setAttribute('aria-selected', 'false');
 }
 
 tabLogin.addEventListener('click', () => {
@@ -35,6 +32,9 @@ tabLogin.addEventListener('click', () => {
     tabLogin.classList.add('active');
     tabLogin.setAttribute('aria-selected', 'true');
     loginPanel.style.display = 'block';
+    if (resetForm) {
+        resetForm.style.display = 'none';
+    }
     panelTitle.textContent = 'Welcome Back';
     panelDesc.textContent = 'Enter your credentials to access the portal';
 });
@@ -48,14 +48,12 @@ tabRegister.addEventListener('click', () => {
     panelDesc.textContent = 'Register as medical personnel to get started';
 });
 
-tabReset.addEventListener('click', () => {
-    hideAllPanels();
-    tabReset.classList.add('active');
-    tabReset.setAttribute('aria-selected', 'true');
-    resetPanel.style.display = 'block';
-    panelTitle.textContent = 'Reset Password';
-    panelDesc.textContent = 'Restore access to your account';
-});
+if (forgotPasswordToggle && resetForm) {
+    forgotPasswordToggle.addEventListener('click', () => {
+        const isHidden = resetForm.style.display === 'none' || !resetForm.style.display;
+        resetForm.style.display = isHidden ? 'block' : 'none';
+    });
+}
 
 // Registration Success Modal Handler
 const modalLoginBtn = document.getElementById('modal-login-btn');
@@ -70,17 +68,6 @@ if (modalLoginBtn) {
         tabLogin.click();
     });
 }
-
-// Dynamic Doctor Fields
-const regRoleSelect = document.getElementById('reg-role');
-const doctorFields = document.getElementById('doctor-fields');
-regRoleSelect.addEventListener('change', () => {
-    if (regRoleSelect.value === 'doctor') {
-        doctorFields.style.display = 'block';
-    } else {
-        doctorFields.style.display = 'none';
-    }
-});
 
 // Helper function to validate email format
 function validateEmail(email) {
@@ -121,76 +108,6 @@ if (emailInput) {
     });
 }
 
-// Helper function to clear schedule validation errors
-function clearScheduleErrors() {
-    const scheduleErrors = ['err-schedule-days', 'err-schedule-start', 'err-schedule-end'];
-    scheduleErrors.forEach(id => {
-        const elem = document.getElementById(id);
-        if (elem) {
-            elem.classList.add('hidden');
-            elem.textContent = '';
-        }
-    });
-}
-
-// Schedule validation when hours change
-const startHourInput = document.getElementById('reg-schedule-start');
-const endHourInput = document.getElementById('reg-schedule-end');
-
-[startHourInput, endHourInput].forEach(input => {
-    input.addEventListener('blur', function() {
-        if (document.getElementById('reg-role').value === 'doctor') {
-            validateScheduleHours();
-        }
-    });
-    input.addEventListener('input', function() {
-        if (document.getElementById('reg-role').value === 'doctor' && this.value) {
-            validateScheduleHours();
-        }
-    });
-});
-
-function validateScheduleHours() {
-    clearScheduleErrors();
-    const startval = startHourInput.value.trim();
-    const endval = endHourInput.value.trim();
-
-    if (!startval || !endval) {
-        return; // Allow empty until submission
-    }
-
-    const startHour = parseInt(startval);
-    const endHour = parseInt(endval);
-
-    let hasError = false;
-
-    // Validate start hour
-    if (isNaN(startHour) || startHour < 0 || startHour > 23) {
-        const errElem = document.getElementById('err-schedule-start');
-        errElem.textContent = 'Start hour must be between 0 and 23';
-        errElem.classList.remove('hidden');
-        hasError = true;
-    }
-
-    // Validate end hour
-    if (isNaN(endHour) || endHour < 0 || endHour > 23) {
-        const errElem = document.getElementById('err-schedule-end');
-        errElem.textContent = 'End hour must be between 0 and 23';
-        errElem.classList.remove('hidden');
-        hasError = true;
-    }
-
-    // Validate start is before end
-    if (!hasError && startHour >= endHour) {
-        const errElem = document.getElementById('err-schedule-end');
-        errElem.textContent = 'End hour must be after start hour';
-        errElem.classList.remove('hidden');
-        hasError = true;
-    }
-
-    return !hasError;
-}
-
 const registerSubmitBtn = document.getElementById('register-submit-btn');
 const registerSubmitLabel = registerSubmitBtn ? registerSubmitBtn.querySelector('.btn-label') : null;
 const loginSubmitBtn = document.getElementById('login-submit-btn');
@@ -203,7 +120,7 @@ function setRegisterLoading(isLoading) {
     registerSubmitBtn.disabled = isLoading;
     registerSubmitBtn.classList.toggle('is-loading', isLoading);
     if (registerSubmitLabel) {
-        registerSubmitLabel.textContent = isLoading ? 'CREATING ACCOUNT...' : 'REGISTER AS PERSONNEL';
+        registerSubmitLabel.textContent = isLoading ? 'SENDING VERIFICATION...' : 'SEND VERIFICATION EMAIL';
     }
 }
 
@@ -228,13 +145,14 @@ function setResetLoading(isLoading) {
 // Registration Form Handler
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = document.getElementById('reg-username').value.trim();
+    const first_name = document.getElementById('reg-first-name').value.trim();
+    const middle_name = document.getElementById('reg-middle-name').value.trim();
+    const last_name = document.getElementById('reg-last-name').value.trim();
+    const birthday = document.getElementById('reg-birthday').value;
+    const gender = document.getElementById('reg-gender').value;
     const employee_id = document.getElementById('reg-employee-id').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const role = document.getElementById('reg-role').value;
-    const password = document.getElementById('reg-password').value;
-    const confirmPassword = document.getElementById('reg-confirm-password').value;
-    const specialization = document.getElementById('reg-specialization').value.trim();
     
     const err = document.getElementById('register-error');
     const success = document.getElementById('register-success');
@@ -256,55 +174,9 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         emailError.classList.remove('hidden');
         return;
     }
-    
-    // Capture schedule data for doctors
-    let schedule = null;
-    if (role === 'doctor') {
-        const selectedDays = Array.from(document.querySelectorAll('input[name="schedule-day"]:checked')).map(cb => cb.value);
-        const startHour = document.getElementById('reg-schedule-start').value;
-        const endHour = document.getElementById('reg-schedule-end').value;
-        
-        // Validate schedule for doctors
-        clearScheduleErrors();
-        let scheduleValid = true;
 
-        if (selectedDays.length === 0) {
-            const errElem = document.getElementById('err-schedule-days');
-            errElem.textContent = 'Please select at least one working day';
-            errElem.classList.remove('hidden');
-            scheduleValid = false;
-        }
-
-        if (!startHour || !endHour) {
-            if (!startHour) {
-                const errElem = document.getElementById('err-schedule-start');
-                errElem.textContent = 'Start hour is required';
-                errElem.classList.remove('hidden');
-            }
-            if (!endHour) {
-                const errElem = document.getElementById('err-schedule-end');
-                errElem.textContent = 'End hour is required';
-                errElem.classList.remove('hidden');
-            }
-            scheduleValid = false;
-        } else if (!validateScheduleHours()) {
-            scheduleValid = false;
-        }
-
-        if (!scheduleValid) {
-            return;
-        }
-        
-        schedule = {
-            days: selectedDays,
-            startHour: parseInt(startHour),
-            endHour: parseInt(endHour)
-        };
-    }
-
-    // Basic Client-side matches Middleware logic
-    if (password !== confirmPassword) {
-        err.textContent = 'Passwords do not match.';
+    if (!first_name || !middle_name || !last_name || !birthday || !gender || !employee_id || !role) {
+        err.textContent = 'Please complete all required registration fields.';
         err.style.display = 'block';
         return;
     }
@@ -317,14 +189,14 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                username,
+                first_name,
+                middle_name,
+                last_name,
+                birthday,
+                gender,
                 employee_id,
                 email,
-                role,
-                password,
-                confirmPassword,
-                specialization,
-                schedule
+                role
             })
         });
 
@@ -333,7 +205,6 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         if (response.ok) {
             // Show success modal
             document.getElementById('register-form').reset();
-            doctorFields.style.display = 'none';
             const successModal = document.getElementById('registration-success-modal');
             successModal.classList.remove('hidden');
         } else {
@@ -352,14 +223,15 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 // Login Form Handler
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const role = document.getElementById('role').value;
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const err = document.getElementById('login-error');
 
     err.style.display = 'none';
 
-    if (!username || !password) {
-        err.textContent = 'Please enter both username and password.';
+    if (!role || !username || !password) {
+        err.textContent = 'Please select a role and enter username and password.';
         err.style.display = 'block';
         return;
     }
@@ -371,7 +243,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ role, username, password })
         });
 
         const data = await response.json();

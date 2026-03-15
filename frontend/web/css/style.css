@@ -732,6 +732,44 @@ select:focus {
     flex: 0 0 40px
 }
 
+/* Unified hover feedback for dashboard clickables */
+
+.app .sidebar .nav a,
+.app .sidebar .nav .nav-btn,
+.app .sidebar .nav .dropdown-item,
+.app .sidebar .brand-row .control-btns .icon-btn,
+.app .topbar .icon-btn,
+.app .logout-btn,
+.app .chip-btn,
+.app .tab,
+.app .filter-select,
+.app .account-row,
+.app .pending-row {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.app .topbar .icon-btn:hover,
+.app .logout-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+}
+
+.app .tab:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.10);
+}
+
+.app .filter-select:hover {
+    border-color: #9ab4ea;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.app .account-row:hover,
+.app .pending-row:hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 0 0 1px #d8e4fb;
+}
+
 /* Search input */
 
 .search-wrap {
