@@ -76,18 +76,47 @@ document.addEventListener('click', (e) => {
 
 state();
 
+async function performLogout() {
+  try {
+    await fetch(`${API_BASE}/api/staff/logout`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    window.location.replace('/html/index.html');
+  }
+}
+
 const logoutBtn = document.getElementById('logout-btn');
+const logoutConfirmModal = document.getElementById('logout-confirm-modal');
+const logoutConfirmYesBtn = document.getElementById('logout-confirm-yes');
+const logoutConfirmNoBtn = document.getElementById('logout-confirm-no');
+
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', async () => {
-    try {
-      await fetch(`${API_BASE}/api/staff/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      window.location.href = '/html/index.html';
+  logoutBtn.addEventListener('click', () => {
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'flex';
+      return;
+    }
+    performLogout();
+  });
+}
+
+if (logoutConfirmYesBtn) {
+  logoutConfirmYesBtn.addEventListener('click', () => {
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'none';
+    }
+    performLogout();
+  });
+}
+
+if (logoutConfirmNoBtn) {
+  logoutConfirmNoBtn.addEventListener('click', () => {
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'none';
     }
   });
 }
@@ -100,16 +129,27 @@ async function ensureAuthenticatedSession() {
     });
 
     if (!response.ok) {
-      window.location.href = '/html/index.html';
+      window.location.replace('/html/index.html');
       return false;
     }
     return true;
   } catch (error) {
     console.error('Session check failed:', error);
-    window.location.href = '/html/index.html';
+    window.location.replace('/html/index.html');
     return false;
   }
 }
+
+window.addEventListener('pageshow', async (event) => {
+  const navEntries = performance.getEntriesByType('navigation');
+  const navType = navEntries && navEntries.length > 0 ? navEntries[0].type : '';
+  const restoredFromHistory = event.persisted || navType === 'back_forward';
+  if (!restoredFromHistory) {
+    return;
+  }
+
+  await ensureAuthenticatedSession();
+});
 
 // Search input handler
 const searchInput = document.getElementById('search-input');
@@ -414,15 +454,24 @@ function attachAccountRowListener(row) {
 
     currentAccountData = { ...user };
 
+    const firstName = String(user.first_name || '').trim();
+    const lastName = String(user.last_name || '').trim();
+    const fullName = `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim();
+    const birthdayValue = user.birthday ? new Date(user.birthday) : null;
+    const birthdayText = birthdayValue && !Number.isNaN(birthdayValue.getTime())
+      ? birthdayValue.toLocaleDateString()
+      : '—';
+
     // Populate modal
-    document.getElementById('modal-name').textContent = user.username;
-    document.getElementById('modal-email').textContent = user.employee_id || '—'; // Using employee_id as email placeholder or identifier
+    document.getElementById('modal-name').textContent = fullName || user.username || '—';
+    document.getElementById('modal-email').textContent = user.email || '—';
     document.getElementById('modal-role').textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-    document.getElementById('modal-password').textContent = '••••••••';
     document.getElementById('modal-status').textContent = user.status;
+    document.getElementById('modal-contact').textContent = user.employee_id || '—';
+    document.getElementById('modal-bday').textContent = birthdayText;
 
     // Hide/clear extra fields that don't exist in our schema
-    const extraFields = ['mi', 'contact', 'address', 'bday'];
+    const extraFields = ['address'];
     extraFields.forEach(field => {
       const el = document.getElementById(`modal-${field}`);
       if (el) el.textContent = user[field] || '—';
@@ -648,7 +697,7 @@ if (deleteBtn) {
 // Confirm button
 const confirmBtn = document.getElementById('modal-confirm-btn');
 if (confirmBtn) {
-  confirmBtn.addEventListener('click', () => {
+  confirmBtn.addEventListener('click', async () => {
     if (currentAction === 'edit') {
       console.log('Editing account:', currentAccountData);
       alert('Account updated successfully');
@@ -656,21 +705,35 @@ if (confirmBtn) {
       currentAccountData = null;
       currentAction = null;
     } else if (currentAction === 'delete') {
-      console.log('Deleting account:', currentAccountData);
-      // Find and remove the row from the table
-      const accountRows = document.querySelectorAll('.account-row');
-      accountRows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells[0].textContent === currentAccountData.name && cells[1].textContent === currentAccountData.email) {
-          row.remove();
+      try {
+        if (!currentAccountData || !currentAccountData.id) {
+          showToast('Unable to delete: missing account id.', 'error');
+          return;
         }
-      });
-      // remove from stored accounts
-      if (currentAccountData && currentAccountData.email) storedAccounts.delete(currentAccountData.email);
-      alert('Account deleted successfully');
-      document.getElementById('account-modal').style.display = 'none';
-      currentAccountData = null;
-      currentAction = null;
+
+        const response = await fetch(`${API_BASE}/api/staff/${currentAccountData.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          showToast(data.message || 'Failed to delete account.', 'error');
+          return;
+        }
+
+        document.getElementById('account-modal').style.display = 'none';
+        document.getElementById('modal-confirm-section').style.display = 'none';
+        document.getElementById('modal-actions').style.display = 'flex';
+        currentAccountData = null;
+        currentAction = null;
+
+        await Promise.all([loadStaffData(), loadPendingStaffData()]);
+        showToast(data.message || 'Account deleted successfully.', 'success');
+      } catch (error) {
+        console.error('Delete account error:', error);
+        showToast('Server error during deletion.', 'error');
+      }
     }
   });
 }

@@ -16,6 +16,9 @@ let staffEmailVerificationTableReady = false;
 let staffPasswordResetSchemaReady = false;
 let staffProfileSchemaReady = false;
 
+const nameRegex = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+const numericRegex = /^\d+$/;
+
 async function ensureStaffEmailVerificationTable() {
     if (staffEmailVerificationTableReady) {
         return;
@@ -338,7 +341,7 @@ function renderAccountSetupPage({ token, firstName = '', lastName = '', role = '
                 <input id="consent" type="checkbox" required />
                 <label for="consent">I confirm that all submitted details are accurate and I agree to wait for admin account approval.</label>
             </div>
-            <button id="submit-btn" type="submit" class="btn">Create Account</button>
+            <button id="submit-btn" type="submit" class="btn" disabled>Create Account</button>
             <p id="error" class="error"></p>
         </form>
     </main>
@@ -355,8 +358,17 @@ function renderAccountSetupPage({ token, firstName = '', lastName = '', role = '
         const form = document.getElementById('setup-form');
         const errorEl = document.getElementById('error');
         const submitBtn = document.getElementById('submit-btn');
+        const consentCheckbox = document.getElementById('consent');
         const approvalModal = document.getElementById('approval-modal');
         const approvalModalBtn = document.getElementById('approval-modal-btn');
+
+        function syncSubmitEnabledState() {
+            if (!submitBtn) return;
+            submitBtn.disabled = !consentCheckbox.checked;
+        }
+
+        consentCheckbox.addEventListener('change', syncSubmitEnabledState);
+        syncSubmitEnabledState();
 
         approvalModalBtn.addEventListener('click', () => {
             window.location.href = '/html/index.html';
@@ -407,8 +419,8 @@ function renderAccountSetupPage({ token, firstName = '', lastName = '', role = '
                 if (!response.ok) {
                     errorEl.textContent = data.message || 'Unable to complete account setup.';
                     errorEl.style.display = 'block';
-                    submitBtn.disabled = false;
                     submitBtn.textContent = 'Create Account';
+                    syncSubmitEnabledState();
                     return;
                 }
 
@@ -419,8 +431,8 @@ function renderAccountSetupPage({ token, firstName = '', lastName = '', role = '
             } catch (error) {
                 errorEl.textContent = 'Server error. Please try again.';
                 errorEl.style.display = 'block';
-                submitBtn.disabled = false;
                 submitBtn.textContent = 'Create Account';
+                syncSubmitEnabledState();
             }
         });
     </script>
@@ -456,26 +468,38 @@ exports.registerStaff = async (req, res) => {
 
         const normalizedEmail = String(email).trim().toLowerCase();
         const normalizedGender = String(gender).trim();
+        const normalizedFirstName = String(first_name).trim();
+        const normalizedMiddleName = String(middle_name).trim();
+        const normalizedLastName = String(last_name).trim();
+        const normalizedEmployeeId = String(employee_id).trim();
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
             return res.status(400).json({ message: 'Invalid email format' });
         }
 
+        if (!nameRegex.test(normalizedFirstName) || !nameRegex.test(normalizedMiddleName) || !nameRegex.test(normalizedLastName)) {
+            return res.status(400).json({ message: 'First, middle, and last name must contain letters only' });
+        }
+
+        if (!numericRegex.test(normalizedEmployeeId)) {
+            return res.status(400).json({ message: 'Employee ID must contain numbers only' });
+        }
+
         // Check if employee_id or email already exists in active or pending accounts.
         const [existingStaff] = await connection.query(
             "SELECT id FROM staff WHERE employee_id = ? OR email = ?",
-            [employee_id, normalizedEmail]
+            [normalizedEmployeeId, normalizedEmail]
         );
 
         const [existingPending] = await connection.query(
             "SELECT id FROM pending_staff WHERE employee_id = ? OR email = ?",
-            [employee_id, normalizedEmail]
+            [normalizedEmployeeId, normalizedEmail]
         );
 
         // Check staged registrations waiting for email verification.
         const [existingStaged] = await connection.query(
             "SELECT id FROM staff_email_verifications WHERE employee_id = ? OR email = ?",
-            [employee_id, normalizedEmail]
+            [normalizedEmployeeId, normalizedEmail]
         );
 
         if (existingStaff.length > 0) {
@@ -511,12 +535,12 @@ exports.registerStaff = async (req, res) => {
         `;
 
         const params = [
-            String(first_name).trim(),
-            String(middle_name).trim(),
-            String(last_name).trim(),
+            normalizedFirstName,
+            normalizedMiddleName,
+            normalizedLastName,
             birthday,
             normalizedGender,
-            employee_id,
+            normalizedEmployeeId,
             normalizedEmail,
             role,
             tokenHash,
@@ -530,7 +554,7 @@ exports.registerStaff = async (req, res) => {
 
         await sendStaffVerificationEmail({
             to: normalizedEmail,
-            username: `${String(first_name).trim()} ${String(last_name).trim()}`,
+            username: `${normalizedFirstName} ${normalizedLastName}`,
             verificationUrl,
             expiresHours: 24
         });
@@ -635,6 +659,31 @@ exports.getPendingStaff = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Server error" });
+    }
+};
+
+// Delete active staff account
+exports.deleteStaff = async (req, res) => {
+    try {
+        const id = Number.parseInt(req.params.id, 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ message: 'Invalid staff id' });
+        }
+
+        // Prevent deleting the currently logged in account.
+        if (req.sessionUser && Number(req.sessionUser.id) === id) {
+            return res.status(400).json({ message: 'You cannot delete your own account while logged in.' });
+        }
+
+        const [result] = await db.query('DELETE FROM staff WHERE id = ?', [id]);
+        if (!result || result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Account not found' });
+        }
+
+        return res.status(200).json({ message: 'Account deleted successfully' });
+    } catch (error) {
+        console.error('Delete staff error:', error);
+        return res.status(500).json({ message: 'Server error during deletion' });
     }
 };
 

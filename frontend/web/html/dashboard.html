@@ -317,19 +317,26 @@
     </div>
   </div>
 
+  <!-- Logout Confirmation Modal -->
+  <div id="logout-confirm-modal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <h2 class="modal-title">Confirm Logout</h2>
+      <p class="modal-confirm-text">Are you sure you want to log out?</p>
+      <div class="modal-actions">
+        <button id="logout-confirm-yes" class="btn btn-confirm">Log Out</button>
+        <button id="logout-confirm-no" class="btn-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Account Details Modal -->
   <div id="account-modal" class="modal-overlay" style="display:none">
     <div class="modal-content">
-      <h2 id="modal-title" class="modal-title">Account Details</h2>
+      <h2 id="modal-title" class="modal-title">Registered Account Details</h2>
       <div class="modal-grid">
         <div class="modal-group">
-          <label class="modal-label">Name</label>
+          <label class="modal-label">Full Name</label>
           <p id="modal-name" class="modal-text"></p>
-        </div>
-
-        <div class="modal-group">
-          <label class="modal-label">M.I.</label>
-          <p id="modal-mi" class="modal-text"></p>
         </div>
 
         <div class="modal-group">
@@ -343,7 +350,7 @@
         </div>
 
         <div class="modal-group">
-          <label class="modal-label">Contact Number</label>
+          <label class="modal-label">Employee ID</label>
           <p id="modal-contact" class="modal-text"></p>
         </div>
 
@@ -360,11 +367,6 @@
         <div class="modal-group">
           <label class="modal-label">Status</label>
           <p id="modal-status" class="modal-text"></p>
-        </div>
-
-        <div class="modal-group">
-          <label class="modal-label">Password</label>
-          <p id="modal-password" class="modal-text"></p>
         </div>
       </div>
 

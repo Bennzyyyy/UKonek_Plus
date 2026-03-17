@@ -7,6 +7,9 @@ const router = express.Router();
 // GET /api/staff - Get all staff accounts
 router.get('/', requireAuth, staffController.getAllStaff);
 
+// DELETE /api/staff/:id - Delete active staff account
+router.delete('/:id', requireAuth, staffController.deleteStaff);
+
 // POST /api/staff/register - Register to pending_staff table
 router.post('/register', staffController.registerStaff);
 

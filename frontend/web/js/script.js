@@ -75,6 +75,16 @@ function validateEmail(email) {
     return emailRegex.test(email);
 }
 
+function validateName(name) {
+    const nameRegex = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+    return nameRegex.test(name);
+}
+
+function validateNumericString(value) {
+    const numericRegex = /^\d+$/;
+    return numericRegex.test(value);
+}
+
 // Email input validation
 const emailInput = document.getElementById('reg-email');
 if (emailInput) {
@@ -105,6 +115,23 @@ if (emailInput) {
         if (validateEmail(email)) {
             emailError.classList.add('hidden');
         }
+    });
+}
+
+const nameFieldIds = ['reg-first-name', 'reg-middle-name', 'reg-last-name'];
+nameFieldIds.forEach((fieldId) => {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+
+    input.addEventListener('input', function () {
+        this.value = this.value.replace(/\d+/g, '');
+    });
+});
+
+const employeeIdInput = document.getElementById('reg-employee-id');
+if (employeeIdInput) {
+    employeeIdInput.addEventListener('input', function () {
+        this.value = this.value.replace(/\D+/g, '');
     });
 }
 
@@ -172,6 +199,18 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     if (!validateEmail(email)) {
         emailError.textContent = 'Please enter a valid email address';
         emailError.classList.remove('hidden');
+        return;
+    }
+
+    if (!validateName(first_name) || !validateName(middle_name) || !validateName(last_name)) {
+        err.textContent = 'Name fields must contain letters only.';
+        err.style.display = 'block';
+        return;
+    }
+
+    if (!validateNumericString(employee_id)) {
+        err.textContent = 'Employee ID must contain numbers only.';
+        err.style.display = 'block';
         return;
     }
 

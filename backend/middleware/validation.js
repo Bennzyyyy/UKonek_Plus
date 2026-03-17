@@ -1,4 +1,5 @@
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const numericRegex = /^\d+$/;
 
 // Shared validation for internal consistency
 function validateCommonFields(body, res) {
@@ -46,6 +47,10 @@ exports.validateStaff = (req, res, next) => {
 
     if (!emailRegex.test(email)) {
         return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (!numericRegex.test(String(employee_id).trim())) {
+        return res.status(400).json({ message: "Employee ID must contain numbers only" });
     }
 
     if (!validateCommonFields(req.body, res)) return;

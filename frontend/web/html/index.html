@@ -91,17 +91,17 @@
                 <form id="register-form" novalidate>
                     <div class="field">
                         <label class="inputLabel" for="reg-first-name">First Name</label>
-                        <input id="reg-first-name" type="text" placeholder="Enter your first name" required />
+                        <input id="reg-first-name" type="text" placeholder="Enter your first name" required pattern="[A-Za-z][A-Za-z '-]*" title="Name must contain letters only" />
                     </div>
 
                     <div class="field">
                         <label class="inputLabel" for="reg-middle-name">Middle Name</label>
-                        <input id="reg-middle-name" type="text" placeholder="Enter your middle name" required />
+                        <input id="reg-middle-name" type="text" placeholder="Enter your middle name" required pattern="[A-Za-z][A-Za-z '-]*" title="Name must contain letters only" />
                     </div>
 
                     <div class="field">
                         <label class="inputLabel" for="reg-last-name">Last Name</label>
-                        <input id="reg-last-name" type="text" placeholder="Enter your last name" required />
+                        <input id="reg-last-name" type="text" placeholder="Enter your last name" required pattern="[A-Za-z][A-Za-z '-]*" title="Name must contain letters only" />
                     </div>
 
                     <div class="field">
@@ -121,7 +121,7 @@
 
                     <div class="field">
                         <label class="inputLabel" for="reg-employee-id">Employee ID</label>
-                        <input id="reg-employee-id" type="text" placeholder="e.g. EMP-12345" required />
+                        <input id="reg-employee-id" type="text" placeholder="e.g. 12345" required inputmode="numeric" pattern="\d+" title="Employee ID must contain numbers only" />
                     </div>
 
                     <div class="field">

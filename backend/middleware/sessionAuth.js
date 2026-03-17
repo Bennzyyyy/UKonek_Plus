@@ -73,7 +73,15 @@ function setSessionCookie(res, sessionId) {
     });
 }
 
+function setNoCacheHeaders(res) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+}
+
 function requireAuth(req, res, next) {
+    setNoCacheHeaders(res);
     const cookies = parseCookies(req.headers.cookie || '');
     const sessionId = cookies[SESSION_COOKIE_NAME];
     const session = getSession(sessionId);
@@ -88,6 +96,7 @@ function requireAuth(req, res, next) {
 }
 
 function requirePageAuth(req, res, next) {
+    setNoCacheHeaders(res);
     const cookies = parseCookies(req.headers.cookie || '');
     const sessionId = cookies[SESSION_COOKIE_NAME];
     const session = getSession(sessionId);
