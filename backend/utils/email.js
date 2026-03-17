@@ -170,3 +170,35 @@ exports.sendStaffPasswordResetEmail = async ({ to, username, resetUrl, expiresMi
 		html
 	});
 };
+
+exports.sendPatientOtpEmail = async ({ to, purpose, otp, expiresMinutes = 10 }) => {
+	const transporter = getSmtpTransport();
+	const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+	const appName = process.env.APP_NAME || 'uKonek Plus';
+	const friendlyPurpose = purpose === 'registration' ? 'account registration' : 'password reset';
+
+	const subject = `${appName}: Your OTP code`;
+	const text = [
+		`Your one-time passcode for ${friendlyPurpose} is: ${otp}`,
+		'',
+		`This code expires in ${expiresMinutes} minutes.`,
+		'If you did not request this, you can ignore this message.'
+	].join('\n');
+
+	const html = `
+		<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
+			<p>Your one-time passcode for <strong>${friendlyPurpose}</strong> is:</p>
+			<p style="font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 10px 0;">${otp}</p>
+			<p>This code expires in ${expiresMinutes} minutes.</p>
+			<p>If you did not request this, you can ignore this message.</p>
+		</div>
+	`;
+
+	await transporter.sendMail({
+		from,
+		to,
+		subject,
+		text,
+		html
+	});
+};

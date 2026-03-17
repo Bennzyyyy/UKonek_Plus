@@ -105,7 +105,7 @@ function initializeDatabase() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 firstname VARCHAR(100) NOT NULL,
                 surname VARCHAR(100) NOT NULL,
-                middle_initial VARCHAR(10) DEFAULT NULL,
+                middle_initial VARCHAR(100) DEFAULT NULL,
                 date_of_birth DATE DEFAULT NULL,
                 age INT DEFAULT NULL,
                 contact_number VARCHAR(30) DEFAULT NULL,
