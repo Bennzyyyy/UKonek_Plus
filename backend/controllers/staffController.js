@@ -1076,7 +1076,7 @@ exports.loginStaff = async (req, res) => {
             role: userInfo.role,
             email: userInfo.email
         });
-        setSessionCookie(res, sessionId);
+        setSessionCookie(req, res, sessionId);
         res.status(200).json({ message: "Login successful", user: userInfo });
 
     } catch (error) {
@@ -1092,7 +1092,7 @@ exports.logoutStaff = async (req, res) => {
     if (sessionId) {
         destroySession(sessionId);
     }
-    clearSessionCookie(res);
+    clearSessionCookie(req, res);
 
     return res.status(200).json({ message: 'Logged out successfully' });
 };

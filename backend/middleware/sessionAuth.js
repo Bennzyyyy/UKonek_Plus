@@ -3,6 +3,14 @@ const crypto = require('crypto');
 const SESSION_COOKIE_NAME = 'ukonek_sid';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 const sessions = new Map();
+const isProduction = process.env.NODE_ENV === 'production';
+const cookieSameSite = process.env.SESSION_COOKIE_SAMESITE || 'lax';
+
+function shouldUseSecureCookie(req) {
+    if (process.env.SESSION_COOKIE_SECURE === 'true') return true;
+    if (process.env.SESSION_COOKIE_SECURE === 'false') return false;
+    return isProduction && (req?.secure || req?.headers?.['x-forwarded-proto'] === 'https');
+}
 
 function parseCookies(cookieHeader = '') {
     return cookieHeader
@@ -55,19 +63,20 @@ function destroySession(sessionId) {
     sessions.delete(sessionId);
 }
 
-function clearSessionCookie(res) {
+function clearSessionCookie(req, res) {
     res.clearCookie(SESSION_COOKIE_NAME, {
         httpOnly: true,
-        sameSite: 'lax',
+        sameSite: cookieSameSite,
+        secure: shouldUseSecureCookie(req),
         path: '/'
     });
 }
 
-function setSessionCookie(res, sessionId) {
+function setSessionCookie(req, res, sessionId) {
     res.cookie(SESSION_COOKIE_NAME, sessionId, {
         httpOnly: true,
-        sameSite: 'lax',
-        secure: false,
+        sameSite: cookieSameSite,
+        secure: shouldUseSecureCookie(req),
         path: '/',
         maxAge: SESSION_TTL_MS
     });
