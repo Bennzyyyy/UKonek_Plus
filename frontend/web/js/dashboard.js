@@ -1,6 +1,5 @@
 const sidebar = document.getElementById('sidebar');
 const burger = document.getElementById('burger');
-const back = document.getElementById('back');
 
 // Handle port mismatch during development (Live Server on 5500, Backend on 5000)
 const API_BASE = window.location.port === '5500'
@@ -40,7 +39,6 @@ function state() {
   const collapsed = sidebar.classList.contains('collapsed');
   const slid = sidebar.classList.contains('slid');
   burger.textContent = (slid || !collapsed) ? '←' : '☰';
-  if (back) back.style.display = (collapsed && !slid) ? 'none' : 'inline-block';
 }
 
 if (burger) {
@@ -56,17 +54,11 @@ if (burger) {
   window.addEventListener('resize', state);
 }
 
-if (back) {
-  back.addEventListener('click', () => {
-    sidebar.classList.add('collapsed');
-    sidebar.classList.remove('slid');
-    state();
-  });
-}
+
 
 document.addEventListener('click', (e) => {
   if (window.innerWidth <= 900 && sidebar && sidebar.classList.contains('slid')) {
-    const inside = sidebar.contains(e.target) || (burger && burger.contains(e.target)) || (back && back.contains(e.target));
+    const inside = sidebar.contains(e.target) || (burger && burger.contains(e.target));
     if (!inside) {
       sidebar.classList.remove('slid');
       state();
@@ -85,7 +77,7 @@ async function performLogout() {
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
-    window.location.replace('/html/index.html');
+    window.location.replace('./index.html');
   }
 }
 
@@ -129,7 +121,7 @@ async function ensureAuthenticatedSession() {
     });
 
     if (!response.ok) {
-      window.location.replace('/html/index.html');
+      // Do not redirect automatically — return null and let caller handle it.
       return null;
     }
 
@@ -137,7 +129,7 @@ async function ensureAuthenticatedSession() {
     return sessionData?.user || null;
   } catch (error) {
     console.error('Session check failed:', error);
-    window.location.replace('/html/index.html');
+    // Suppress automatic redirect here; caller will decide next steps.
     return null;
   }
 }
@@ -251,27 +243,415 @@ if (searchInput) {
   });
 }
 
-// Dropdown toggle for Users menu
-const navBtn = document.querySelector('.nav-btn');
-const dropdownMenu = document.querySelector('.dropdown-menu');
-if (navBtn && dropdownMenu) {
-  navBtn.addEventListener('click', (e) => {
+// Dropdown toggle for each nav button (supports multiple dropdowns)
+const navBtns = document.querySelectorAll('.nav-btn');
+navBtns.forEach(btn => {
+  const parent = btn.closest('.nav-item');
+  const menu = parent ? parent.querySelector('.dropdown-menu') : null;
+  btn.addEventListener('click', (e) => {
     e.preventDefault();
-    // toggle the hidden class so !important rules are respected
-    dropdownMenu.classList.toggle('hidden');
+    // close other dropdowns
+    document.querySelectorAll('.dropdown-menu').forEach(m => {
+      if (m !== menu) m.classList.add('hidden');
+    });
+
+    // Toggle dropdown if present
+    if (menu) menu.classList.toggle('hidden');
+
+    // If this nav button has a data-section, also open that section
+    const section = btn.getAttribute('data-section');
+    if (section) {
+      hideAllSections();
+      clearActiveNav();
+      btn.classList.add('is-active');
+      if (section === 'dashboard' && dashboardSection) dashboardSection.classList.remove('hidden');
+      else if (section === 'reports' && reportsSection) reportsSection.classList.remove('hidden');
+    }
+  });
+});
+
+// Registration handlers from script.js (adapted for dashboard)
+const EYE_OPEN_ICON = `
+<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M12 5c-5.5 0-9.3 4.1-10.7 6.1a1.5 1.5 0 0 0 0 1.8C2.7 14.9 6.5 19 12 19s9.3-4.1 10.7-6.1a1.5 1.5 0 0 0 0-1.8C21.3 9.1 17.5 5 12 5zm0 11a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+</svg>`;
+
+const EYE_CLOSED_ICON = `
+<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M2.3 1.3a1 1 0 0 0-1.4 1.4l3 3A13.8 13.8 0 0 0 1.3 11a1.5 1.5 0 0 0 0 1.8C2.7 14.9 6.5 19 12 19a12 12 0 0 0 4.6-.9l3.1 3.1a1 1 0 1 0 1.4-1.4zm7.5 10.3a2.5 2.5 0 0 0 3.6 2.4l-3.5-3.5c0 .4-.1.7-.1 1.1zM12 7a5 5 0 0 1 5 5c0 .7-.1 1.3-.4 1.9l1.5 1.5a13.8 13.8 0 0 0 4.6-4.4 1.5 1.5 0 0 0 0-1.8C21.3 9.1 17.5 5 12 5c-1.4 0-2.7.3-3.8.8l1.5 1.5c.6-.2 1.5-.3 2.3-.3z"/>
+</svg>`;
+
+function setupPasswordVisibilityToggles(root = document) {
+  const passwordInputs = root.querySelectorAll('input[type="password"]');
+  passwordInputs.forEach((input) => {
+    if (input.dataset.toggleAttached === 'true') return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'password-input-wrap';
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'password-toggle';
+    toggleBtn.setAttribute('aria-label', 'Show password');
+    toggleBtn.setAttribute('aria-pressed', 'false');
+    toggleBtn.innerHTML = EYE_OPEN_ICON;
+    toggleBtn.addEventListener('click', () => {
+      const showPassword = input.type === 'password';
+      input.type = showPassword ? 'text' : 'password';
+      toggleBtn.innerHTML = showPassword ? EYE_CLOSED_ICON : EYE_OPEN_ICON;
+      toggleBtn.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+      toggleBtn.setAttribute('aria-pressed', showPassword ? 'true' : 'false');
+    });
+    wrapper.appendChild(toggleBtn);
+    input.dataset.toggleAttached = 'true';
   });
 }
 
+let pendingRegistrationProfile = null;
+
+// --- ADD THESE MISSING DEFINITIONS AT THE TOP OF YOUR SCRIPT ---
+const registerForm = document.getElementById('register-form');
+const registerSubmitBtn = document.getElementById('register-submit-btn');
+const registerOtpModal = document.getElementById('register-otp-modal');
+const registerOtpForm = document.getElementById('register-otp-form');
+const otpModalCloseBtn = document.getElementById('otp-modal-close-btn');
+const otpCompleteBtn = document.getElementById('otp-complete-btn');
+const registrationSuccessModal = document.getElementById('registration-success-modal');
+const regSuccessDashboardBtn = document.getElementById('reg-success-dashboard-btn');
+const regSuccessUsersBtn = document.getElementById('reg-success-users-btn');
+const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
+const registerResendOtpBtn = document.getElementById('register-resend-otp-btn');
+
+// --- FIXED REGISTRATION HANDLER ---
+if (registerForm) {
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Get values
+    const first_name = document.getElementById('reg-first-name').value.trim();
+    const middle_name = document.getElementById('reg-middle-name').value.trim();
+    const last_name = document.getElementById('reg-last-name').value.trim();
+    const birthday = document.getElementById('reg-birthday').value;
+    const gender = document.getElementById('reg-gender').value;
+    const employee_id = document.getElementById('reg-employee-id').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const role = document.getElementById('reg-role').value;
+
+    const err = document.getElementById('register-error');
+    const success = document.getElementById('register-success');
+
+    err.style.display = 'none';
+    if (!first_name || !last_name || !email || !role) {
+      err.textContent = 'Please fill in all required fields.';
+      err.style.display = 'block';
+      return;
+    }
+
+    // Visual feedback
+    registerSubmitBtn.disabled = true;
+    const label = registerSubmitBtn.querySelector('.btn-label');
+    if (label) label.textContent = 'SENDING OTP...';
+
+    try {
+      const response = await fetch(`${API_BASE}/api/staff/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name, middle_name, last_name, birthday, gender, employee_id, email, role }),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Registration failed');
+
+      pendingRegistrationProfile = { first_name, middle_name, last_name, birthday, gender, employee_id, email, role };
+
+      // Open OTP Modal
+      if (registerOtpModal) registerOtpModal.classList.remove('hidden');
+      showToast('OTP sent to email', 'info');
+
+    } catch (error) {
+      err.textContent = error.message;
+      err.style.display = 'block';
+    } finally {
+      registerSubmitBtn.disabled = false;
+      if (label) label.textContent = 'SEND OTP';
+    }
+  });
+}
+
+// OTP Modal handlers
+if (otpModalCloseBtn) {
+  otpModalCloseBtn.addEventListener('click', () => {
+    if (registerOtpModal) registerOtpModal.classList.add('hidden');
+  });
+}
+
+if (registerOtpModal) {
+  registerOtpModal.addEventListener('click', (event) => {
+    if (event.target === registerOtpModal) {
+      registerOtpModal.classList.add('hidden');
+    }
+  });
+}
+
+if (registerOtpForm) {
+  registerOtpForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const otpModalError = document.getElementById('otp-modal-error');
+    const otpModalSuccess = document.getElementById('otp-modal-success');
+    const otp = document.getElementById('reg-otp').value.trim();
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const confirmPassword = document.getElementById('reg-confirm-password').value;
+    const consentGiven = document.getElementById('reg-consent').checked;
+
+    if (otpModalError) otpModalError.style.display = 'none';
+    if (otpModalSuccess) otpModalSuccess.style.display = 'none';
+
+    if (!pendingRegistrationProfile || !pendingRegistrationProfile.email) {
+      if (otpModalError) {
+        otpModalError.textContent = 'No active registration request found. Please send OTP again.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      if (otpModalError) {
+        otpModalError.textContent = 'Please enter a valid 6-digit OTP.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!username || !password || !confirmPassword) {
+      if (otpModalError) {
+        otpModalError.textContent = 'Username, password, and confirm password are required.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      if (otpModalError) {
+        otpModalError.textContent = 'Passwords do not match.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!consentGiven) {
+      if (otpModalError) {
+        otpModalError.textContent = 'Consent is required to continue.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    otpCompleteBtn.disabled = true;
+    const otpLabel = otpCompleteBtn.querySelector('.btn-label');
+    if (otpLabel) otpLabel.textContent = 'CREATING ACCOUNT...';
+
+    try {
+      const completeResponse = await fetch(`${API_BASE}/api/staff/complete-registration`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: pendingRegistrationProfile.email,
+          otp,
+          username,
+          password,
+          confirmPassword,
+          consentGiven
+        })
+      });
+
+      const completeData = await completeResponse.json();
+
+      if (!completeResponse.ok) {
+        if (otpModalError) {
+          otpModalError.textContent = completeData.message || 'Unable to complete registration.';
+          otpModalError.style.display = 'block';
+        }
+        return;
+      }
+
+      if (registerOtpModal) registerOtpModal.classList.add('hidden');
+      registerForm.reset();
+      registerOtpForm.reset();
+      pendingRegistrationProfile = null;
+
+      if (registrationSuccessModal) registrationSuccessModal.classList.remove('hidden');
+    } catch (error) {
+      console.error('Error:', error);
+      if (otpModalError) {
+        otpModalError.textContent = 'Server connection failed.';
+        otpModalError.style.display = 'block';
+      }
+    } finally {
+      otpCompleteBtn.disabled = false;
+      if (otpLabel) otpLabel.textContent = 'COMPLETE REGISTRATION';
+    }
+  });
+}
+
+// Resend OTP
+if (registerResendOtpBtn) {
+  registerResendOtpBtn.addEventListener('click', async (event) => {
+    event.preventDefault();
+
+    if (registerResendOtpBtn.getAttribute('aria-disabled') === 'true') return;
+
+    const err = document.getElementById('register-error');
+    const otpModalError = document.getElementById('otp-modal-error');
+    const otpModalSuccess = document.getElementById('otp-modal-success');
+
+    if (!pendingRegistrationProfile) {
+      if (otpModalError) {
+        otpModalError.textContent = 'No active registration request found. Please send OTP again.';
+        otpModalError.style.display = 'block';
+      }
+      return;
+    }
+
+    err.style.display = 'none';
+    if (otpModalError) otpModalError.style.display = 'none';
+    if (otpModalSuccess) otpModalSuccess.style.display = 'none';
+
+    registerResendOtpBtn.setAttribute('aria-disabled', 'true');
+    registerResendOtpBtn.style.pointerEvents = 'none';
+    registerResendOtpBtn.style.opacity = '0.65';
+    registerResendOtpBtn.textContent = 'Sending...';
+
+    try {
+      const response = await fetch(`${API_BASE}/api/staff/register`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingRegistrationProfile)
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (otpModalError) {
+          otpModalError.textContent = data.message || 'Failed to resend OTP.';
+          otpModalError.style.display = 'block';
+        }
+        return;
+      }
+
+      if (otpModalSuccess) {
+        otpModalSuccess.style.display = 'block';
+        otpModalSuccess.textContent = data.message || 'OTP resent. Please check email.';
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      if (otpModalError) {
+        otpModalError.textContent = 'Server connection failed.';
+        otpModalError.style.display = 'block';
+      }
+    } finally {
+      registerResendOtpBtn.setAttribute('aria-disabled', 'false');
+      registerResendOtpBtn.style.pointerEvents = '';
+      registerResendOtpBtn.style.opacity = '';
+      registerResendOtpBtn.textContent = 'Resend OTP';
+    }
+  });
+}
+
+// Success modal buttons
+if (regSuccessDashboardBtn) {
+  regSuccessDashboardBtn.addEventListener('click', () => {
+    if (registrationSuccessModal) registrationSuccessModal.classList.add('hidden');
+    hideAllSections();
+    if (dashboardSection) dashboardSection.classList.remove('hidden');
+  });
+}
+
+if (regSuccessUsersBtn) {
+  regSuccessUsersBtn.addEventListener('click', () => {
+    if (registrationSuccessModal) registrationSuccessModal.classList.add('hidden');
+    openUsersSubsection('account-management');
+  });
+}
+
+// Back to dashboard
+if (backToDashboardBtn) {
+  backToDashboardBtn.addEventListener('click', () => {
+    hideAllSections();
+    if (dashboardSection) dashboardSection.classList.remove('hidden');
+  });
+}
+
+// Name field validation (letters only)
+['reg-first-name', 'reg-middle-name', 'reg-last-name'].forEach(fieldId => {
+  const input = document.getElementById(fieldId);
+  if (input) {
+    input.addEventListener('input', function () {
+      this.value = this.value.replace(/\d+/g, '');
+    });
+  }
+});
+
+// Employee ID numeric only
+const employeeIdInput = document.getElementById('reg-employee-id');
+if (employeeIdInput) {
+  employeeIdInput.addEventListener('input', function () {
+    this.value = this.value.replace(/\D+/g, '');
+  });
+}
+
+// Email validation
+const emailInput = document.getElementById('reg-email');
+if (emailInput) {
+  emailInput.addEventListener('blur', function () {
+    const emailError = document.getElementById('err-reg-email');
+    const email = this.value.trim();
+    if (!email) {
+      if (emailError) emailError.classList.add('hidden');
+      return;
+    }
+    if (!validateEmail(email)) {
+      if (emailError) {
+        emailError.textContent = 'Please enter a valid email address';
+        emailError.classList.remove('hidden');
+      }
+    } else {
+      if (emailError) emailError.classList.add('hidden');
+    }
+  });
+}
+
+// Password toggles
+setupPasswordVisibilityToggles();
+
+// Init registration section handlers after DOM load
+document.addEventListener('DOMContentLoaded', () => {
+  setupPasswordVisibilityToggles();
+});
+
+
+
 // Section navigation
-const navLinks = document.querySelectorAll('.nav-item[data-section]');
+// Only attach the generic anchor-based nav handler to top-level <a> links
+// (exclude dropdown items which have their own handlers).
+const navLinks = document.querySelectorAll('a[data-section]:not(.dropdown-item)');
 const dropdownItems = document.querySelectorAll('.dropdown-item');
 const dashboardSection = document.getElementById('dashboard-section');
 const usersSection = document.getElementById('users-section');
+const newRegistrationSection = document.getElementById('new-registration');
+const reportsSection = document.getElementById('reports-section');
+
 
 const statTotalStaff = document.getElementById('stat-total-staff');
 const statPendingStaff = document.getElementById('stat-pending-staff');
 const statDoctors = document.getElementById('stat-doctors');
 const statActiveStaff = document.getElementById('stat-active-staff');
+const statAnnouncements = document.getElementById('stat-announcements');
+const statReports = document.getElementById('stat-reports');
+const statCitizens = document.getElementById('stat-citizens');
 const dashboardPendingPreview = document.getElementById('dashboard-pending-preview');
 const dashboardActivePreview = document.getElementById('dashboard-active-preview');
 const dashboardLastSync = document.getElementById('dashboard-last-sync');
@@ -279,22 +659,26 @@ const dashboardLastSync = document.getElementById('dashboard-last-sync');
 const dashRefreshBtn = document.getElementById('dash-refresh-btn');
 const dashOpenPendingBtn = document.getElementById('dash-open-pending-btn');
 const refreshAccountsBtn = document.getElementById('refresh-accounts-btn');
+const citizensTbody = document.getElementById('citizens-tbody');
+const citizensPane = document.getElementById('citizens-pane');
 
 function hideAllSections() {
-  // add the hidden class everywhere instead of fiddling with style.display;
-  // .hidden has !important so inline styles would lose to it
   if (dashboardSection) dashboardSection.classList.add('hidden');
   if (usersSection) usersSection.classList.add('hidden');
+  if (reportsSection) reportsSection.classList.add('hidden');
   const nonAdminSection = document.getElementById('non-admin-section');
   if (nonAdminSection) nonAdminSection.classList.add('hidden');
   // Hide all subsections
   const accountMgmt = document.getElementById('account-management');
   if (accountMgmt) accountMgmt.classList.add('hidden');
+  if (newRegistrationSection) newRegistrationSection.classList.add('hidden');
 }
+
 
 function clearActiveNav() {
   navLinks.forEach((link) => link.classList.remove('is-active'));
-  if (navBtn) navBtn.classList.remove('is-active');
+  // clear any active nav-buttons
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('is-active'));
 }
 
 navLinks.forEach(link => {
@@ -306,19 +690,213 @@ navLinks.forEach(link => {
     link.classList.add('is-active');
     if (section === 'dashboard' && dashboardSection) {
       dashboardSection.classList.remove('hidden');
+    } else if (section === 'reports' && reportsSection) {
+      reportsSection.classList.remove('hidden');
     }
-    if (dropdownMenu) dropdownMenu.classList.add('hidden');
+    // ensure all dropdown menus are closed
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
   });
 });
 
+// Reports tabs switching
+const tabFeedback = document.getElementById('tab-feedback');
+const tabAnnouncements = document.getElementById('tab-announcements');
+const feedbackPane = document.getElementById('feedback-pane');
+const announcementsPane = document.getElementById('announcements-pane');
+if (tabFeedback && tabAnnouncements && feedbackPane && announcementsPane) {
+  tabFeedback.addEventListener('click', () => {
+    tabFeedback.classList.add('active');
+    tabAnnouncements.classList.remove('active');
+    feedbackPane.classList.remove('hidden');
+    announcementsPane.classList.add('hidden');
+  });
+  tabAnnouncements.addEventListener('click', () => {
+    tabAnnouncements.classList.add('active');
+    tabFeedback.classList.remove('active');
+    announcementsPane.classList.remove('hidden');
+    feedbackPane.classList.add('hidden');
+  });
+}
+
+// Reports refresh button
+const reportsRefreshBtn = document.getElementById('reports-refresh-btn');
+if (reportsRefreshBtn) {
+  reportsRefreshBtn.addEventListener('click', () => {
+    showToast('Reports data refreshed (placeholder).', 'info');
+  });
+}
+
+// Create announcement modal handlers
+const createAnnouncementBtn = document.getElementById('create-announcement-btn');
+const createAnnouncementModal = document.getElementById('create-announcement-modal');
+const createAnnouncementForm = document.getElementById('create-announcement-form');
+const annSubmitBtn = document.getElementById('ann-submit-btn');
+const annCancelBtn = document.getElementById('ann-cancel-btn');
+const annFormError = document.getElementById('ann-form-error');
+
+if (createAnnouncementBtn && createAnnouncementModal) {
+  createAnnouncementBtn.addEventListener('click', () => {
+    createAnnouncementModal.classList.remove('hidden');
+  });
+}
+
+if (annCancelBtn && createAnnouncementModal) {
+  annCancelBtn.addEventListener('click', () => {
+    createAnnouncementModal.classList.add('hidden');
+    if (createAnnouncementForm) createAnnouncementForm.reset();
+    if (annFormError) annFormError.style.display = 'none';
+  });
+}
+
+if (createAnnouncementModal) {
+  createAnnouncementModal.addEventListener('click', (e) => {
+    if (e.target === createAnnouncementModal) {
+      createAnnouncementModal.classList.add('hidden');
+      if (createAnnouncementForm) createAnnouncementForm.reset();
+      if (annFormError) annFormError.style.display = 'none';
+    }
+  });
+}
+
+if (createAnnouncementForm && annSubmitBtn) {
+  createAnnouncementForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('ann-title').value.trim();
+    const content = document.getElementById('ann-content').value.trim();
+
+    if (!title || !content) {
+      if (annFormError) {
+        annFormError.textContent = 'Title and content are required.';
+        annFormError.style.display = 'block';
+      }
+      return;
+    }
+
+    annSubmitBtn.disabled = true;
+    const spinner = annSubmitBtn.querySelector('.btn-spinner');
+    const label = annSubmitBtn.querySelector('.btn-label');
+    if (spinner) spinner.style.display = 'inline-block';
+    if (label) label.textContent = 'PUBLISHING...';
+
+    // Placeholder API call
+    try {
+      showToast('Announcement created successfully (placeholder).', 'success');
+      if (createAnnouncementModal) createAnnouncementModal.classList.add('hidden');
+      createAnnouncementForm.reset();
+    } catch (error) {
+      console.error('Error:', error);
+      if (annFormError) {
+        annFormError.textContent = 'Failed to create announcement.';
+        annFormError.style.display = 'block';
+      }
+    } finally {
+      annSubmitBtn.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (label) label.textContent = 'PUBLISH ANNOUNCEMENT';
+    }
+  });
+}
+
+// Top-right quick create announcement button (same modal)
+const createAnnouncementTopBtn = document.getElementById('create-announcement-topright');
+if (createAnnouncementTopBtn && createAnnouncementModal) {
+  createAnnouncementTopBtn.addEventListener('click', () => {
+    createAnnouncementModal.classList.remove('hidden');
+  });
+}
+
+// Announcement detail modal logic
+const announcementDetailModal = document.getElementById('announcement-detail-modal');
+const announcementDetailClose = document.getElementById('announcement-detail-close');
+const announcementDetailTitle = document.getElementById('announcement-detail-title');
+const announcementDetailBody = document.getElementById('announcement-detail-body');
+const announcementDetailDate = document.getElementById('announcement-detail-date');
+
+function openAnnouncementDetail(row) {
+  const cells = row.querySelectorAll('td');
+  const title = cells[0]?.innerText.trim() || 'Announcement';
+  const preview = cells[1]?.innerText.trim() || '';
+  const date = cells[2]?.innerText.trim() || '';
+  if (announcementDetailTitle) announcementDetailTitle.textContent = title;
+  if (announcementDetailBody) announcementDetailBody.textContent = preview;
+  if (announcementDetailDate) announcementDetailDate.textContent = date;
+  if (announcementDetailModal) announcementDetailModal.classList.remove('hidden');
+}
+
+document.querySelectorAll('.announcement-row').forEach(row => {
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', () => openAnnouncementDetail(row));
+});
+
+if (announcementDetailModal) {
+  announcementDetailModal.addEventListener('click', (e) => {
+    if (e.target === announcementDetailModal || e.target.classList.contains('modal-close')) {
+      announcementDetailModal.classList.add('hidden');
+    }
+  });
+}
+if (announcementDetailClose) announcementDetailClose.addEventListener('click', () => announcementDetailModal.classList.add('hidden'));
+
+
+
 dropdownItems.forEach(item => {
   item.addEventListener('click', (e) => {
+    // Prevent other handlers (including generic nav handlers) from interfering
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     e.preventDefault();
     const section = item.getAttribute('data-section');
     hideAllSections();
     clearActiveNav();
-    if (navBtn) navBtn.classList.add('is-active');
-    if (usersSection) usersSection.classList.remove('hidden');
+
+    // Close all dropdowns
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
+
+    // Activate parent nav button if present
+    const parentNavItem = item.closest('.nav-item');
+    const parentNavBtn = parentNavItem ? parentNavItem.querySelector('.nav-btn') : null;
+    if (parentNavBtn) parentNavBtn.classList.add('is-active');
+
+    // Users submenu handling
+    if (section === 'account-management' || section === 'new-registration') {
+      if (usersSection) usersSection.classList.remove('hidden');
+      const subsection = document.getElementById(section);
+      if (subsection) subsection.classList.remove('hidden');
+      // Ensure account management hidden when opening user registration
+      const accountMgmt = document.getElementById('account-management');
+      if (section === 'new-registration' && accountMgmt) accountMgmt.classList.add('hidden');
+      if (section === 'account-management' && accountMgmt) accountMgmt.classList.remove('hidden');
+      return;
+    }
+
+    // Reports submenu handling: show reports and switch panes
+    if (section === 'announcements-pane' || section === 'feedback-pane') {
+      if (reportsSection) reportsSection.classList.remove('hidden');
+
+      // Prefer triggering the tab click handlers (they handle classes + pane visibility)
+      if (section === 'announcements-pane') {
+        if (tabAnnouncements && typeof tabAnnouncements.click === 'function') {
+          tabAnnouncements.click();
+        } else {
+          if (tabAnnouncements) tabAnnouncements.classList.add('active');
+          if (tabFeedback) tabFeedback.classList.remove('active');
+          if (announcementsPane) announcementsPane.classList.remove('hidden');
+          if (feedbackPane) feedbackPane.classList.add('hidden');
+        }
+      } else {
+        if (tabFeedback && typeof tabFeedback.click === 'function') {
+          tabFeedback.click();
+        } else {
+          if (tabFeedback) tabFeedback.classList.add('active');
+          if (tabAnnouncements) tabAnnouncements.classList.remove('active');
+          if (feedbackPane) feedbackPane.classList.remove('hidden');
+          if (announcementsPane) announcementsPane.classList.add('hidden');
+        }
+      }
+      return;
+    }
+
+    // Generic subsection open
     const subsection = document.getElementById(section);
     if (subsection) subsection.classList.remove('hidden');
   });
@@ -333,6 +911,7 @@ if (dashboardLink && !dashboardLink.classList.contains('hidden')) {
 const storedAccounts = new Map();
 let latestStaffList = [];
 let latestPendingList = [];
+let latestCitizensList = [];
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -344,6 +923,26 @@ function formatDateTime(value) {
 function renderDashboardInsights() {
   if (statTotalStaff) statTotalStaff.textContent = String(latestStaffList.length);
   if (statPendingStaff) statPendingStaff.textContent = String(latestPendingList.length);
+
+  // Announcements count (read from localStorage if present)
+  try {
+    const raw = localStorage.getItem('ukonek_announcements');
+    const anns = raw ? JSON.parse(raw) : [];
+    if (statAnnouncements) statAnnouncements.textContent = String(Array.isArray(anns) ? anns.length : 0);
+  } catch (err) {
+    if (statAnnouncements) statAnnouncements.textContent = '0';
+  }
+
+  // Reports / feedback count (count rows in feedback table)
+  try {
+    const feedbackRows = document.querySelectorAll('#feedback-tbody tr');
+    if (statReports) statReports.textContent = String(feedbackRows ? feedbackRows.length : 0);
+  } catch (err) {
+    if (statReports) statReports.textContent = '0';
+  }
+
+  // Citizens count
+  if (statCitizens) statCitizens.textContent = String(latestCitizensList.length || 0);
 
   const doctorsCount = latestStaffList.filter((user) => String(user.role || '').toLowerCase() === 'doctor').length;
   if (statDoctors) statDoctors.textContent = String(doctorsCount);
@@ -381,6 +980,41 @@ function renderDashboardInsights() {
 
   if (dashboardLastSync) {
     dashboardLastSync.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
+  }
+}
+
+// Load citizens (mobile app users)
+async function loadCitizenData() {
+  try {
+    // Attempt to fetch from API; fallback to empty list
+    const response = await fetch(`${API_BASE}/api/citizens`, { credentials: 'include' });
+    let list = [];
+    if (response && response.ok) {
+      list = await response.json();
+    }
+    latestCitizensList = Array.isArray(list) ? list : [];
+
+    if (citizensTbody) {
+      citizensTbody.innerHTML = '';
+      if (latestCitizensList.length === 0) {
+        citizensTbody.innerHTML = '<tr><td class="table-cell" colspan="4">No citizen accounts found.</td></tr>';
+      } else {
+        latestCitizensList.forEach(user => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="table-cell">${user.username || user.name || '—'}</td>
+            <td class="table-cell">${user.email || '—'}</td>
+            <td class="table-cell">${user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
+            <td class="table-cell">${user.status || '—'}</td>
+          `;
+          citizensTbody.appendChild(row);
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error loading citizens:', error);
+    latestCitizensList = [];
+    if (citizensTbody) citizensTbody.innerHTML = '<tr><td class="table-cell" colspan="4">Unable to load citizens.</td></tr>';
   }
 }
 
@@ -474,14 +1108,16 @@ async function initDashboardData() {
 
   if (dashboardSection) dashboardSection.classList.remove('hidden');
   if (dashboardLink) dashboardLink.classList.add('is-active');
-  await Promise.all([loadStaffData(), loadPendingStaffData()]);
+  await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
+  // Refresh counts after all data loaded
+  renderDashboardInsights();
 }
 
 initDashboardData();
 
 if (dashRefreshBtn) {
   dashRefreshBtn.addEventListener('click', async () => {
-    await Promise.all([loadStaffData(), loadPendingStaffData()]);
+    await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
     showToast('Dashboard data refreshed.', 'info');
   });
 }
@@ -495,31 +1131,14 @@ if (dashOpenPendingBtn) {
 
 if (refreshAccountsBtn) {
   refreshAccountsBtn.addEventListener('click', async () => {
-    await Promise.all([loadStaffData(), loadPendingStaffData()]);
+    await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
     showToast('Account tables refreshed.', 'info');
   });
 }
 
 // Utility validation functions
-function validatePassword(pw) {
-  // at least 8 chars, uppercase, lowercase, number, special
-  return /(?=.{8,})(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(pw);
-}
 function validateEmail(email) {
   return /.+@.+\..+/.test(email);
-}
-function validateContactNumber(num) {
-  const digits = num.replace(/\D/g, '');
-  return digits.length === 11;
-}
-function calculateAge(birthIso) {
-  if (!birthIso) return 0;
-  const b = new Date(birthIso);
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  const m = now.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
-  return age;
 }
 
 // Role filter functionality
@@ -592,23 +1211,37 @@ document.querySelectorAll('.account-row').forEach(attachAccountRowListener);
 // attach listeners to any existing pending rows (none initially)
 document.querySelectorAll('.pending-row').forEach(attachPendingRowListener);
 
-// Tab switching
+// Tab switching (Registered / Pending / Citizens)
 const tabRegistered = document.getElementById('tab-registered');
 const tabPending = document.getElementById('tab-pending');
+const tabCitizens = document.getElementById('tab-citizens');
 const registeredPane = document.getElementById('registered-pane');
 const pendingPane = document.getElementById('pending-pane');
-if (tabRegistered && tabPending && registeredPane && pendingPane) {
+const citizensPaneEl = document.getElementById('citizens-pane');
+if (tabRegistered && tabPending && registeredPane && pendingPane && tabCitizens && citizensPaneEl) {
   tabRegistered.addEventListener('click', () => {
     tabRegistered.classList.add('active');
     tabPending.classList.remove('active');
+    tabCitizens.classList.remove('active');
     registeredPane.classList.remove('hidden');
     pendingPane.classList.add('hidden');
+    citizensPaneEl.classList.add('hidden');
   });
   tabPending.addEventListener('click', () => {
     tabPending.classList.add('active');
     tabRegistered.classList.remove('active');
+    tabCitizens.classList.remove('active');
     pendingPane.classList.remove('hidden');
     registeredPane.classList.add('hidden');
+    citizensPaneEl.classList.add('hidden');
+  });
+  tabCitizens.addEventListener('click', () => {
+    tabCitizens.classList.add('active');
+    tabRegistered.classList.remove('active');
+    tabPending.classList.remove('active');
+    citizensPaneEl.classList.remove('hidden');
+    registeredPane.classList.add('hidden');
+    pendingPane.classList.add('hidden');
   });
 }
 
@@ -623,41 +1256,10 @@ function attachPendingRowListener(row) {
     }
 
     // Populate pending modal fields (create modal elements if absent)
-    let pendingModal = document.getElementById('pending-modal');
+    const pendingModal = document.getElementById('pending-modal');
     if (!pendingModal) {
-      // create modal markup dynamically and append to body
-      pendingModal = document.createElement('div');
-      pendingModal.id = 'pending-modal';
-      pendingModal.className = 'modal-overlay';
-      pendingModal.innerHTML = `
-        <div class="modal-content">
-          <h2 class="modal-title">Pending Registration</h2>
-          <div class="modal-group"><label class="modal-label">Username</label><p id="pending-username" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Employee ID</label><p id="pending-employee-id" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Email</label><p id="pending-email" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Role</label><p id="pending-role" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Specialization</label><p id="pending-specialization" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Schedule</label><p id="pending-schedule" class="modal-text"></p></div>
-          <div class="modal-group"><label class="modal-label">Submitted</label><p id="pending-submitted" class="modal-text"></p></div>
-          <div class="modal-actions">
-            <button id="pending-accept" class="btn btn-confirm">ACCEPT</button>
-            <button id="pending-reject" class="btn btn-delete">REJECT</button>
-            <button id="pending-close" class="btn-close">Close</button>
-          </div>
-          <div id="pending-confirm" class="modal-confirm-section" style="display:none">
-            <p id="pending-confirm-text" class="modal-confirm-text"></p>
-            <div class="flex gap-12">
-              <button id="pending-confirm-yes" class="btn btn-confirm">Confirm</button>
-              <button id="pending-confirm-no" class="btn-cancel">Cancel</button>
-            </div>
-          </div>
-        </div>`;
-      document.body.appendChild(pendingModal);
-
-      // wire close
-      document.getElementById('pending-close').addEventListener('click', () => {
-        pendingModal.style.display = 'none';
-      });
+      console.warn('Pending modal element not found in DOM');
+      return;
     }
 
     let scheduleText = '—';
@@ -690,19 +1292,12 @@ function attachPendingRowListener(row) {
     const showConfirm = (text, onConfirmAction) => {
       const global = document.getElementById('pending-action-confirm-modal');
       if (!global) {
-        // fallback to inline confirm
-        document.getElementById('pending-confirm-text').textContent = text;
-        document.getElementById('pending-confirm').style.display = 'block';
-        const yes = document.getElementById('pending-confirm-yes');
-        const no = document.getElementById('pending-confirm-no');
-        const cleanup = () => { document.getElementById('pending-confirm').style.display = 'none'; yes.onclick = null; no.onclick = null; };
-        yes.onclick = () => { cleanup(); onConfirmAction(); pendingModal.style.display = 'none'; };
-        no.onclick = () => { cleanup(); };
+        console.warn('Pending action confirm modal not found');
         return;
       }
 
       // close the pending modal immediately so the confirmation modal isn't displayed behind it
-      if (pendingModal) pendingModal.style.display = 'none';
+      pendingModal.style.display = 'none';
 
       document.getElementById('pending-action-text').textContent = text;
       global.style.display = 'flex';
@@ -846,3 +1441,327 @@ if (cancelBtn) {
     currentAction = null;
   });
 }
+
+// --- Clickable stats to navigate to panes ---
+const statAnnouncementsCard = document.getElementById('stat-announcements-card');
+const statReportsCard = document.getElementById('stat-reports-card');
+const statCitizensCard = document.getElementById('stat-citizens-card');
+
+if (statAnnouncementsCard) {
+  statAnnouncementsCard.addEventListener('click', () => {
+    hideAllSections();
+    if (reportsSection) reportsSection.classList.remove('hidden');
+    if (tabAnnouncements) tabAnnouncements.click();
+  });
+}
+
+if (statReportsCard) {
+  statReportsCard.addEventListener('click', () => {
+    hideAllSections();
+    if (reportsSection) reportsSection.classList.remove('hidden');
+    if (tabFeedback) tabFeedback.click();
+  });
+}
+
+if (statCitizensCard) {
+  statCitizensCard.addEventListener('click', async () => {
+    hideAllSections();
+    if (usersSection) usersSection.classList.remove('hidden');
+    // ensure citizens data is loaded
+    await loadCitizenData();
+    const citizensTabButton = document.getElementById('tab-citizens');
+    if (citizensTabButton) citizensTabButton.click();
+  });
+}
+
+// --- Consultations, Prescriptions, Medicines (localStorage-backed demo) ---
+const consultationSection = document.getElementById('consultation-section');
+const consultationForm = document.getElementById('consultation-form');
+const consultationsTbody = document.getElementById('consultations-tbody');
+const consultSaveBtn = document.getElementById('consult-save-btn');
+const consultReportBtn = document.getElementById('consult-report-btn');
+
+const prescriptionModal = document.getElementById('prescription-modal');
+const prescriptionForm = document.getElementById('prescription-form');
+const prescriptionPatient = document.getElementById('prescription-patient');
+const prescriptionLines = document.getElementById('prescription-lines');
+const addPrescriptionLineBtn = document.getElementById('add-prescription-line');
+const cancelPrescriptionBtn = document.getElementById('cancel-prescription');
+
+const medicineSection = document.getElementById('medicine-section');
+const medicineForm = document.getElementById('medicine-form');
+const medicineTbody = document.getElementById('medicine-tbody');
+const medicineReportBtn = document.getElementById('medicine-report-btn');
+
+let consultations = [];
+let medicines = [];
+let prescriptions = [];
+
+function loadFromStorage(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error('Storage parse error', key, err);
+    return [];
+  }
+}
+
+function saveToStorage(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch (err) { console.error('Storage save error', key, err); }
+}
+
+function renderConsultations() {
+  if (!consultationsTbody) return;
+  consultationsTbody.innerHTML = '';
+  consultations.slice().reverse().forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="table-cell">${c.id}</td>
+      <td class="table-cell">${c.patientId}</td>
+      <td class="table-cell">${(c.diagnosis||'').substring(0,60)}</td>
+      <td class="table-cell">${new Date(c.created_at).toLocaleString()}</td>
+      <td class="table-cell">
+        <button class="btn small" data-action="view" data-id="${c.id}">View</button>
+        <button class="btn small outline" data-action="prescribe" data-id="${c.id}">Prescribe</button>
+      </td>
+    `;
+    consultationsTbody.appendChild(tr);
+  });
+}
+
+function renderMedicines() {
+  if (!medicineTbody) return;
+  medicineTbody.innerHTML = '';
+  medicines.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="table-cell">${m.name}</td>
+      <td class="table-cell">${m.qty}</td>
+      <td class="table-cell">${m.unit || ''}</td>
+      <td class="table-cell">
+        <button class="btn small" data-action="add" data-name="${m.name}">+ Add</button>
+        <button class="btn small outline" data-action="sub" data-name="${m.name}">- Subtract</button>
+      </td>
+    `;
+    medicineTbody.appendChild(tr);
+  });
+}
+
+function initClinicalData() {
+  consultations = loadFromStorage('ukonek_consultations');
+  medicines = loadFromStorage('ukonek_medicine_inventory');
+  prescriptions = loadFromStorage('ukonek_prescriptions');
+  renderConsultations();
+  renderMedicines();
+}
+
+initClinicalData();
+
+// Consultation form submit
+if (consultationForm) {
+  consultationForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const patientId = document.getElementById('consult-patient-id').value.trim();
+    const symptoms = document.getElementById('consult-symptoms').value.trim();
+    const diagnosis = document.getElementById('consult-diagnosis').value.trim();
+    const notes = document.getElementById('consult-notes').value.trim();
+    if (!patientId || !diagnosis) { showToast('Patient ID and diagnosis required', 'warning'); return; }
+    const entry = { id: `C-${Date.now()}`, patientId, symptoms, diagnosis, notes, created_at: new Date().toISOString() };
+    consultations.push(entry);
+    saveToStorage('ukonek_consultations', consultations);
+    renderConsultations();
+    consultationForm.reset();
+    showToast('Consultation saved', 'success');
+  });
+}
+
+// Open prescription modal
+const consultAddPrescBtn = document.getElementById('consult-add-prescription');
+if (consultAddPrescBtn && prescriptionModal) {
+  consultAddPrescBtn.addEventListener('click', () => {
+    if (prescriptionModal) prescriptionModal.classList.remove('hidden');
+    // prefill patient id if available
+    const pid = document.getElementById('consult-patient-id')?.value || '';
+    if (prescriptionPatient) prescriptionPatient.value = pid;
+    prescriptionLines.innerHTML = '';
+    addPrescriptionLine();
+  });
+}
+
+function addPrescriptionLine() {
+  const line = document.createElement('div');
+  line.className = 'field';
+  line.innerHTML = `
+    <label class="inputLabel">Medicine</label>
+    <select class="pres-med" required>
+      ${medicines.map(m => `<option value="${m.name}">${m.name} (${m.unit||''})</option>`).join('')}
+    </select>
+    <label class="inputLabel">Quantity</label>
+    <input type="number" class="pres-qty" value="1" min="1" required />
+    <button type="button" class="btn small" data-action="remove-line">Remove</button>
+  `;
+  prescriptionLines.appendChild(line);
+  line.querySelector('[data-action="remove-line"]').addEventListener('click', () => line.remove());
+}
+
+if (addPrescriptionLineBtn) addPrescriptionLineBtn.addEventListener('click', addPrescriptionLine);
+
+if (cancelPrescriptionBtn) cancelPrescriptionBtn.addEventListener('click', () => {
+  if (prescriptionModal) prescriptionModal.classList.add('hidden');
+});
+
+if (prescriptionForm) {
+  prescriptionForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const patient = prescriptionPatient.value.trim();
+    if (!patient) { showToast('Patient ID required', 'warning'); return; }
+    const items = [];
+    const selects = prescriptionForm.querySelectorAll('.pres-med');
+    const qtys = prescriptionForm.querySelectorAll('.pres-qty');
+    for (let i = 0; i < selects.length; i++) {
+      const name = selects[i].value;
+      const qty = Number(qtys[i].value) || 0;
+      if (name && qty > 0) items.push({ name, qty });
+    }
+    if (items.length === 0) { showToast('Add at least one medicine', 'warning'); return; }
+    const pres = { id: `P-${Date.now()}`, patient, items, created_at: new Date().toISOString() };
+    prescriptions.push(pres);
+    saveToStorage('ukonek_prescriptions', prescriptions);
+
+    // decrement inventory where possible
+    items.forEach(it => {
+      const idx = medicines.findIndex(m => m.name === it.name);
+      if (idx >= 0) {
+        medicines[idx].qty = Math.max(0, Number(medicines[idx].qty) - Number(it.qty));
+      }
+    });
+    saveToStorage('ukonek_medicine_inventory', medicines);
+    renderMedicines();
+
+    if (prescriptionModal) prescriptionModal.classList.add('hidden');
+    showToast('Prescription created and inventory updated', 'success');
+  });
+}
+
+// Medicine form submit
+if (medicineForm) {
+  medicineForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('med-name').value.trim();
+    const qty = Number(document.getElementById('med-qty').value) || 0;
+    const unit = document.getElementById('med-unit').value.trim();
+    if (!name) { showToast('Medicine name required', 'warning'); return; }
+    const idx = medicines.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) {
+      medicines[idx].qty = Number(medicines[idx].qty) + qty; // treat as adding stock
+      medicines[idx].unit = unit || medicines[idx].unit;
+    } else {
+      medicines.push({ name, qty, unit });
+    }
+    saveToStorage('ukonek_medicine_inventory', medicines);
+    renderMedicines();
+    medicineForm.reset();
+    showToast('Medicine added/updated', 'success');
+  });
+}
+
+// medicine +/- actions
+if (medicineTbody) {
+  medicineTbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const name = btn.getAttribute('data-name');
+    if (!action || !name) return;
+    const idx = medicines.findIndex(m => m.name === name);
+    if (idx < 0) return;
+    if (action === 'add') {
+      const add = Number(prompt('Enter quantity to add', '1')) || 0;
+      medicines[idx].qty = Number(medicines[idx].qty) + add;
+    } else if (action === 'sub') {
+      const sub = Number(prompt('Enter quantity to subtract', '1')) || 0;
+      medicines[idx].qty = Math.max(0, Number(medicines[idx].qty) - sub);
+    }
+    saveToStorage('ukonek_medicine_inventory', medicines);
+    renderMedicines();
+  });
+}
+
+// Consultations table actions (view/prescribe)
+if (consultationsTbody) {
+  consultationsTbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const id = btn.getAttribute('data-id');
+    const entry = consultations.find(c => c.id === id);
+    if (!action || !entry) return;
+    if (action === 'view') {
+      // show brief modal-like window using alert for simplicity
+      alert(`Consultation ${entry.id}\nPatient: ${entry.patientId}\nDiagnosis: ${entry.diagnosis}\nNotes: ${entry.notes}`);
+    } else if (action === 'prescribe') {
+      if (prescriptionModal) prescriptionModal.classList.remove('hidden');
+      if (prescriptionPatient) prescriptionPatient.value = entry.patientId || '';
+      prescriptionLines.innerHTML = '';
+      addPrescriptionLine();
+    }
+  });
+}
+
+// Simple printable report generator (user can Save as PDF via print dialog)
+function generateReport(title, headers, rows) {
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup blocked. Allow popups for report generation.', 'error'); return; }
+  const html = [];
+  html.push('<html><head><title>' + title + '</title>');
+  html.push('<style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f4f4f4}</style>');
+  html.push('</head><body>');
+  html.push('<h1>' + title + '</h1>');
+  html.push('<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead>');
+  html.push('<tbody>');
+  rows.forEach(r => {
+    html.push('<tr>' + r.map(c => `<td>${String(c)}</td>`).join('') + '</tr>');
+  });
+  html.push('</tbody></table>');
+  html.push('</body></html>');
+  win.document.write(html.join(''));
+  win.document.close();
+  // give the browser a moment to render then call print
+  setTimeout(() => { win.print(); }, 500);
+}
+
+// report buttons
+if (consultReportBtn) {
+  consultReportBtn.addEventListener('click', () => {
+    const headers = ['ID', 'Patient', 'Diagnosis', 'Date'];
+    const rows = consultations.map(c => [c.id, c.patientId, c.diagnosis, new Date(c.created_at).toLocaleString()]);
+    generateReport('Consultations Report', headers, rows);
+  });
+}
+
+if (medicineReportBtn) {
+  medicineReportBtn.addEventListener('click', () => {
+    const headers = ['Medicine', 'Quantity', 'Unit'];
+    const rows = medicines.map(m => [m.name, m.qty, m.unit || '']);
+    generateReport('Medicine Inventory Report', headers, rows);
+  });
+}
+
+// Expose report generation for other entities
+function generateUsersReport() {
+  const rows = latestStaffList.map(u => [u.username || '', u.employee_id || '', u.role || '', u.status || '']);
+  generateReport('Users Report', ['Username', 'Employee ID', 'Role', 'Status'], rows);
+}
+
+function generateCitizensReport() {
+  const rows = latestCitizensList.map(c => [c.username || c.name || '', c.email || '', c.created_at || '']);
+  generateReport('Citizens Report', ['Username', 'Email', 'Registered'], rows);
+}
+
+// wire up simple global report triggers (if buttons exist elsewhere)
+const usersReportBtn = document.getElementById('users-report-btn');
+if (usersReportBtn) usersReportBtn.addEventListener('click', generateUsersReport);
+
+const citizensReportBtn = document.getElementById('citizens-report-btn');
+if (citizensReportBtn) citizensReportBtn.addEventListener('click', generateCitizensReport);

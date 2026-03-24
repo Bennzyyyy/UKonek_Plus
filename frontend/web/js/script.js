@@ -1,5 +1,4 @@
 const tabLogin = document.getElementById('tab-login');
-const tabRegister = document.getElementById('tab-register');
 
 // Handle port mismatch during development (Live Server on 5500, Backend on 5000)
 const API_BASE = window.location.port === '5500'
@@ -9,10 +8,8 @@ const LOGIN_PAGE_URL = API_BASE ? `${API_BASE}/html/index.html` : '/html/index.h
 const DASHBOARD_PAGE_URL = API_BASE ? `${API_BASE}/html/dashboard.html` : '/html/dashboard.html';
 
 const loginPanel = document.getElementById('login-panel');
-const registerPanel = document.getElementById('register-panel');
 const forgotPasswordToggle = document.getElementById('forgot-password-toggle');
 const resetForm = document.getElementById('reset-form');
-let pendingRegistrationProfile = null;
 let passwordResetOtpRequested = false;
 
 const panelTitle = document.getElementById('panel-title');
@@ -25,12 +22,9 @@ function clearAuthSensitiveInputs() {
         'reset-email',
         'reset-otp',
         'reset-new-password',
-        'reset-confirm-password',
-        'reg-otp',
-        'reg-username',
-        'reg-password',
-        'reg-confirm-password'
+        'reset-confirm-password'
     ];
+
 
     sensitiveFieldIds.forEach((fieldId) => {
         const field = document.getElementById(fieldId);
@@ -41,21 +35,11 @@ function clearAuthSensitiveInputs() {
     const roleField = document.getElementById('role');
     if (roleField) roleField.value = '';
 
-    const consentField = document.getElementById('reg-consent');
-    if (consentField) consentField.checked = false;
-
-    const otpModalError = document.getElementById('otp-modal-error');
-    if (otpModalError) otpModalError.style.display = 'none';
-    const otpModalSuccess = document.getElementById('otp-modal-success');
-    if (otpModalSuccess) otpModalSuccess.style.display = 'none';
-
     const loginError = document.getElementById('login-error');
     if (loginError) loginError.style.display = 'none';
-    const registerError = document.getElementById('register-error');
-    if (registerError) registerError.style.display = 'none';
 
-    pendingRegistrationProfile = null;
     setResetOtpStepEnabled(false);
+
 }
 
 function setResetOtpStepEnabled(enabled) {
@@ -82,13 +66,10 @@ function setResetOtpStepEnabled(enabled) {
 
 function hideAllPanels() {
     loginPanel.style.display = 'none';
-    registerPanel.style.display = 'none';
 
     tabLogin.classList.remove('active');
-    tabRegister.classList.remove('active');
 
     tabLogin.setAttribute('aria-selected', 'false');
-    tabRegister.setAttribute('aria-selected', 'false');
 }
 
 tabLogin.addEventListener('click', () => {
@@ -103,14 +84,7 @@ tabLogin.addEventListener('click', () => {
     panelDesc.textContent = 'Enter your credentials to access the portal';
 });
 
-tabRegister.addEventListener('click', () => {
-    hideAllPanels();
-    tabRegister.classList.add('active');
-    tabRegister.setAttribute('aria-selected', 'true');
-    registerPanel.style.display = 'block';
-    panelTitle.textContent = 'Join U-Konek+';
-    panelDesc.textContent = 'Register as medical personnel to get started';
-});
+
 
 if (forgotPasswordToggle && resetForm) {
     forgotPasswordToggle.addEventListener('click', () => {
@@ -131,98 +105,17 @@ window.addEventListener('pageshow', (event) => {
     }
 });
 
-// Registration Success Modal Handler
-const modalLoginBtn = document.getElementById('modal-login-btn');
-if (modalLoginBtn) {
-    modalLoginBtn.addEventListener('click', () => {
-        const successModal = document.getElementById('registration-success-modal');
-        successModal.classList.add('hidden');
-        if (window.location.port === '5500') {
-            window.location.href = LOGIN_PAGE_URL;
-            return;
-        }
-        tabLogin.click();
-    });
-}
-
 // Helper function to validate email format
 function validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
 
-function validateName(name) {
-    const nameRegex = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
-    return nameRegex.test(name);
-}
-
-function validateNumericString(value) {
-    const numericRegex = /^\d+$/;
-    return numericRegex.test(value);
-}
-
-// Email input validation
-const emailInput = document.getElementById('reg-email');
-if (emailInput) {
-    emailInput.addEventListener('blur', function() {
-        const emailError = document.getElementById('err-reg-email');
-        const email = this.value.trim();
-        
-        if (!email) {
-            emailError.classList.add('hidden');
-            return;
-        }
-
-        if (!validateEmail(email)) {
-            emailError.textContent = 'Please enter a valid email address';
-            emailError.classList.remove('hidden');
-        } else {
-            emailError.classList.add('hidden');
-        }
-    });
-
-    emailInput.addEventListener('input', function() {
-        const emailError = document.getElementById('err-reg-email');
-        if (emailError.classList.contains('hidden') || !this.value.trim()) {
-            return;
-        }
-        
-        const email = this.value.trim();
-        if (validateEmail(email)) {
-            emailError.classList.add('hidden');
-        }
-    });
-}
-
-const nameFieldIds = ['reg-first-name', 'reg-middle-name', 'reg-last-name'];
-nameFieldIds.forEach((fieldId) => {
-    const input = document.getElementById(fieldId);
-    if (!input) return;
-
-    input.addEventListener('input', function () {
-        this.value = this.value.replace(/\d+/g, '');
-    });
-});
-
-const employeeIdInput = document.getElementById('reg-employee-id');
-if (employeeIdInput) {
-    employeeIdInput.addEventListener('input', function () {
-        this.value = this.value.replace(/\D+/g, '');
-    });
-}
-
-const registerSubmitBtn = document.getElementById('register-submit-btn');
-const registerSubmitLabel = registerSubmitBtn ? registerSubmitBtn.querySelector('.btn-label') : null;
-const registerOtpModal = document.getElementById('register-otp-modal');
-const registerOtpForm = document.getElementById('register-otp-form');
-const otpCompleteBtn = document.getElementById('otp-complete-btn');
-const otpCompleteBtnLabel = otpCompleteBtn ? otpCompleteBtn.querySelector('.btn-label') : null;
-const otpModalCloseBtn = document.getElementById('otp-modal-close-btn');
-const registerResendOtpBtn = document.getElementById('register-resend-otp-btn');
 const loginSubmitBtn = document.getElementById('login-submit-btn');
 const loginSubmitLabel = loginSubmitBtn ? loginSubmitBtn.querySelector('.btn-label') : null;
 const resetSubmitBtn = document.getElementById('reset-submit-btn');
 const resetSubmitLabel = resetSubmitBtn ? resetSubmitBtn.querySelector('.btn-label') : null;
+
 
 const EYE_OPEN_ICON = `
 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -235,36 +128,36 @@ const EYE_CLOSED_ICON = `
 </svg>`;
 
 function setupPasswordVisibilityToggles(root = document) {
-        const passwordInputs = root.querySelectorAll('input[type="password"]');
+    const passwordInputs = root.querySelectorAll('input[type="password"]');
 
-        passwordInputs.forEach((input) => {
-                if (input.dataset.toggleAttached === 'true') {
-                        return;
-                }
+    passwordInputs.forEach((input) => {
+        if (input.dataset.toggleAttached === 'true') {
+            return;
+        }
 
-                const wrapper = document.createElement('div');
-                wrapper.className = 'password-input-wrap';
-                input.parentNode.insertBefore(wrapper, input);
-                wrapper.appendChild(input);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'password-input-wrap';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
 
-                const toggleBtn = document.createElement('button');
-                toggleBtn.type = 'button';
-                toggleBtn.className = 'password-toggle';
-                toggleBtn.setAttribute('aria-label', 'Show password');
-                toggleBtn.setAttribute('aria-pressed', 'false');
-                toggleBtn.innerHTML = EYE_OPEN_ICON;
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'password-toggle';
+        toggleBtn.setAttribute('aria-label', 'Show password');
+        toggleBtn.setAttribute('aria-pressed', 'false');
+        toggleBtn.innerHTML = EYE_OPEN_ICON;
 
-                toggleBtn.addEventListener('click', () => {
-                        const showPassword = input.type === 'password';
-                        input.type = showPassword ? 'text' : 'password';
-                        toggleBtn.innerHTML = showPassword ? EYE_CLOSED_ICON : EYE_OPEN_ICON;
-                        toggleBtn.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
-                        toggleBtn.setAttribute('aria-pressed', showPassword ? 'true' : 'false');
-                });
-
-                wrapper.appendChild(toggleBtn);
-                input.dataset.toggleAttached = 'true';
+        toggleBtn.addEventListener('click', () => {
+            const showPassword = input.type === 'password';
+            input.type = showPassword ? 'text' : 'password';
+            toggleBtn.innerHTML = showPassword ? EYE_CLOSED_ICON : EYE_OPEN_ICON;
+            toggleBtn.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+            toggleBtn.setAttribute('aria-pressed', showPassword ? 'true' : 'false');
         });
+
+        wrapper.appendChild(toggleBtn);
+        input.dataset.toggleAttached = 'true';
+    });
 }
 
 const LOGIN_LOCK_KEY = 'ukonek_login_lock_state';
@@ -396,39 +289,7 @@ function isInvalidCredentialsFailure(response, data) {
     return /invalid credentials/i.test(message);
 }
 
-function setRegisterLoading(isLoading) {
-    if (!registerSubmitBtn) return;
-    registerSubmitBtn.disabled = isLoading;
-    registerSubmitBtn.classList.toggle('is-loading', isLoading);
-    if (registerSubmitLabel) {
-        registerSubmitLabel.textContent = isLoading ? 'SENDING OTP...' : 'SEND OTP';
-    }
-}
 
-function setOtpModalLoading(isLoading) {
-    if (!otpCompleteBtn) return;
-    otpCompleteBtn.disabled = isLoading;
-    otpCompleteBtn.classList.toggle('is-loading', isLoading);
-    if (otpCompleteBtnLabel) {
-        otpCompleteBtnLabel.textContent = isLoading ? 'CREATING ACCOUNT...' : 'COMPLETE REGISTRATION';
-    }
-
-    if (otpModalCloseBtn) {
-        otpModalCloseBtn.disabled = isLoading;
-    }
-}
-
-function openRegistrationOtpModal() {
-    if (registerOtpModal) {
-        registerOtpModal.classList.remove('hidden');
-    }
-}
-
-function closeRegistrationOtpModal() {
-    if (registerOtpModal) {
-        registerOtpModal.classList.add('hidden');
-    }
-}
 
 function setLoginLoading(isLoading) {
     if (!loginSubmitBtn) return;
@@ -458,6 +319,30 @@ function setResetLoading(isLoading) {
     }
 }
 
+// Preloader helper - shows the preloader overlay for `duration` ms then hides it and calls callback
+function showPreloader(duration = 700, cb) {
+    const pre = document.getElementById('preloader');
+    if (!pre) {
+        if (typeof cb === 'function') cb();
+        return;
+    }
+    pre.classList.remove('hidden');
+    // ensure animation restarts
+    pre.querySelector('.preloader-logo')?.classList.remove('animated');
+    void pre.offsetWidth;
+    pre.querySelector('.preloader-logo')?.classList.add('animated');
+    setTimeout(() => {
+        pre.classList.add('hidden');
+        if (typeof cb === 'function') cb();
+    }, duration);
+}
+
+// Show preloader once on page load briefly
+window.addEventListener('load', () => {
+    // show short preloader only for a moment
+    showPreloader(900);
+});
+
 // Registration Form Handler
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -469,11 +354,11 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     const employee_id = document.getElementById('reg-employee-id').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const role = document.getElementById('reg-role').value;
-    
+
     const err = document.getElementById('register-error');
     const success = document.getElementById('register-success');
     const emailError = document.getElementById('err-reg-email');
-    
+
     err.style.display = 'none';
     success.style.display = 'none';
     emailError.classList.add('hidden');
@@ -750,66 +635,25 @@ if (registerResendOtpBtn) {
 // Login Form Handler
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const role = document.getElementById('role').value;
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
+    // Local (dev) sign-in override: do not call backend, simply validate and go to dashboard
+    const username = document.getElementById('username') ? document.getElementById('username').value.trim() : '';
+    const password = document.getElementById('password') ? document.getElementById('password').value : '';
     const err = document.getElementById('login-error');
+    if (err) err.style.display = 'none';
 
-    err.style.display = 'none';
-
-    if (!role || !username || !password) {
-        err.textContent = 'Please select a role and enter username and password.';
-        err.style.display = 'block';
-        return;
-    }
-
-    if (isLoginLocked()) {
-        applyLoginLockStateUI();
-        return;
-    }
-
-    setLoginLoading(true);
-
-    try {
-        const response = await fetch(`${API_BASE}/api/staff/login`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role, username, password })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            resetInvalidLoginAttempts();
-            clearAuthSensitiveInputs();
-            // Success: Redirect to dashboard or store user info
-            console.log('Login successful:', data.user);
-            window.location.href = DASHBOARD_PAGE_URL;
-        } else {
-            if (isInvalidCredentialsFailure(response, data)) {
-                const nextState = recordInvalidLoginAttempt();
-                const lockRemainingMs = Math.max(0, nextState.lockUntil - Date.now());
-
-                if (lockRemainingMs > 0) {
-                    applyLoginLockStateUI();
-                } else {
-                    const attemptsLeft = Math.max(0, LOGIN_MAX_ATTEMPTS - nextState.attempts);
-                    err.textContent = `${data.message || 'Invalid credentials.'} Attempts left: ${attemptsLeft}.`;
-                    err.style.display = 'block';
-                }
-            } else {
-                err.textContent = data.message || 'Login failed.';
-                err.style.display = 'block';
-            }
+    if (!username || !password) {
+        if (err) {
+            err.textContent = 'Please enter username and password.';
+            err.style.display = 'block';
         }
-    } catch (error) {
-        console.error('Error:', error);
-        err.textContent = 'Server connection failed.';
-        err.style.display = 'block';
-    } finally {
-        setLoginLoading(false);
+        return;
     }
+
+    // Show a short preloader then navigate locally to dashboard (no backend required)
+    showPreloader(700, () => {
+        // Use local relative path to dashboard
+        window.location.href = './dashboard.html';
+    });
 });
 
 applyLoginLockStateUI();
