@@ -527,8 +527,8 @@ select:focus {
 
 .sidebar {
     box-sizing: border-box;
-    flex: 0 0 220px;
-    width: 220px;
+    flex: 0 0 70px;
+    width: 70px;
     min-height: 100vh;
     background: linear-gradient(180deg, #002b8f 0%, #012165 100%);
     color: #fff;
@@ -537,6 +537,34 @@ select:focus {
     box-shadow: 8px 0 26px rgba(2, 6, 23, 0.14);
     overflow: hidden;
 }
+
+
+
+
+
+.main-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.main-nav .nav-item, .main-nav .nav-btn {
+    flex: 1 1 auto;
+    min-width: 140px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+    .main-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-radius: 20px 20px 0 0;
+        padding: 12px;
+        max-height: 80px;
+    }
+}
+
 
 .sidebar-inner {
     box-sizing: border-box;
@@ -589,6 +617,11 @@ select:focus {
 
 .hidden {
     display: none !important;
+}
+
+.logoLogIn{
+    width: auto;
+    height: 100px;
 }
 
 .sidebar .brand-row h3 {
@@ -781,7 +814,7 @@ select:focus {
 .mainview {
     flex: 1;
     background: linear-gradient(180deg, #f7f9fc 0%, #eef3fb 100%);
-    padding: 20px 24px 26px;
+    padding: 20px 24px 100px;
 }
 
 .topbar {
@@ -863,6 +896,35 @@ select:focus {
 .profile-img {
     flex: 0 0 40px
 }
+
+/* Profile edit grid */
+.profile-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 18px;
+    align-items: start;
+}
+.avatar-column {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+}
+.avatar-preview {
+    width:140px;
+    height:140px;
+    border-radius:10px;
+    background:#f3f4f6;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    box-shadow: 0 1px 4px rgba(2,6,23,0.06);
+}
+.avatar-preview img{ width:100%; height:100%; object-fit:cover; }
+.file-label{ font-size:13px; color:#374151; }
+.form-column .field{ margin-bottom:10px; }
+.btn-close{ background:#e5e7eb; color:#111827; }
 
 /* Unified hover feedback for dashboard clickables */
 

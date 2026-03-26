@@ -1,10 +1,9 @@
 const sidebar = document.getElementById('sidebar');
 const burger = document.getElementById('burger');
 
-// Handle port mismatch during development (Live Server on 5500, Backend on 5000)
-const API_BASE = window.location.port === '5500'
-  ? `${window.location.protocol}//${window.location.hostname}:5000`
-  : '';
+// No backend - static/localStorage only
+const API_BASE = '';
+
 
 function showToast(message, type = 'info') {
   const containerId = 'toast-container';
@@ -69,17 +68,10 @@ document.addEventListener('click', (e) => {
 state();
 
 async function performLogout() {
-  try {
-    await fetch(`${API_BASE}/api/staff/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    window.location.replace('./index.html');
-  }
+  // Static demo - just reload/redirect
+  window.location.replace('./index.html');
 }
+
 
 const logoutBtn = document.getElementById('logout-btn');
 const logoutConfirmModal = document.getElementById('logout-confirm-modal');
@@ -114,25 +106,18 @@ if (logoutConfirmNoBtn) {
 }
 
 async function ensureAuthenticatedSession() {
-  try {
-    const response = await fetch(`${API_BASE}/api/staff/session`, {
-      method: 'GET',
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      // Do not redirect automatically — return null and let caller handle it.
-      return null;
-    }
-
-    const sessionData = await response.json().catch(() => null);
-    return sessionData?.user || null;
-  } catch (error) {
-    console.error('Session check failed:', error);
-    // Suppress automatic redirect here; caller will decide next steps.
-    return null;
-  }
+  // Mock static user based on page title (role detection)
+  const title = document.title.toLowerCase();
+  const role = title.includes('admin') ? 'admin' : title.includes('specialist') ? 'specialist' : 'staff';
+  return {
+    role,
+    username: 'Demo User',
+    email: 'demo@ukonek.local',
+    first_name: 'Demo',
+    status: 'active'
+  };
 }
+
 
 function isAdminUser(user) {
   return String(user?.role || '').trim().toLowerCase() === 'admin';
@@ -243,32 +228,95 @@ if (searchInput) {
   });
 }
 
-// Dropdown toggle for each nav button (supports multiple dropdowns)
-const navBtns = document.querySelectorAll('.nav-btn');
-navBtns.forEach(btn => {
-  const parent = btn.closest('.nav-item');
-  const menu = parent ? parent.querySelector('.dropdown-menu') : null;
-  btn.addEventListener('click', (e) => {
+// Dropdown toggle + unified nav handler (no more overlaps)
+const navContainer = document.querySelector('.nav');
+if (navContainer) {
+  navContainer.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-section], .nav-btn');
+    if (!el) return;
+
     e.preventDefault();
-    // close other dropdowns
-    document.querySelectorAll('.dropdown-menu').forEach(m => {
-      if (m !== menu) m.classList.add('hidden');
-    });
+    e.stopPropagation();
 
-    // Toggle dropdown if present
-    if (menu) menu.classList.toggle('hidden');
+    const sectionId = el.getAttribute('data-section');
+    const isDropdownBtn = el.classList.contains('nav-btn');
+    const isDropdownItem = el.classList.contains('dropdown-item');
+    const parentItem = el.closest('.nav-item.dropdown');
 
-    // If this nav button has a data-section, also open that section
-    const section = btn.getAttribute('data-section');
-    if (section) {
+    // Close all dropdowns first
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
+
+    // Toggle dropdown if clicking nav-btn
+    if (isDropdownBtn && parentItem) {
+      const menu = parentItem.querySelector('.dropdown-menu');
+      if (menu) menu.classList.toggle('hidden');
+    }
+
+    // Nav activation logic
+    if (sectionId || isDropdownBtn) {
       hideAllSections();
       clearActiveNav();
-      btn.classList.add('is-active');
-      if (section === 'dashboard' && dashboardSection) dashboardSection.classList.remove('hidden');
-      else if (section === 'reports' && reportsSection) reportsSection.classList.remove('hidden');
+
+      // Activate clicked element
+      el.classList.add('is-active');
+
+      // Activate parent dropdown btn for dropdown items
+      if (isDropdownItem && parentItem) {
+        const parentBtn = parentItem.querySelector('.nav-btn');
+        if (parentBtn) parentBtn.classList.add('is-active');
+      }
+
+      showSection(sectionId || el.getAttribute('data-section'));
     }
   });
-});
+}
+
+async function showSection(sectionId) {
+  if (!sectionId) return;
+
+  const targetSection = document.getElementById(sectionId);
+  if (targetSection) {
+    targetSection.classList.remove('hidden');
+    
+    // Dynamic refresh for section content
+    const user = await ensureAuthenticatedSession();
+    switch (sectionId) {
+      case 'schedule-section':
+        loadSchedules(user);
+        break;
+      case 'profile-section':
+        if (user) populateProfile(user);
+        break;
+      case 'medicine-section':
+      case 'consultation-section':
+        initClinicalData();
+        break;
+      case 'dashboard-section':
+        renderDashboardInsights();
+        break;
+      // Add more as needed
+    }
+    return;
+  }
+
+  // Special handling for parent sections + subsections (unchanged)
+  const parentSection = document.getElementById('users-section') || document.getElementById('reports-section');
+  if (parentSection) {
+    parentSection.classList.remove('hidden');
+    
+    // Handle sub-tabs/panes for users/reports
+    if (sectionId.includes('account-management') || sectionId.includes('new-registration')) {
+      const registeredPane = document.getElementById('registered-pane');
+      if (sectionId.includes('account-management') && registeredPane) registeredPane.classList.remove('hidden');
+      // Hide other panes...
+    } else if (sectionId.includes('announcements') || sectionId.includes('feedback')) {
+      const tab = sectionId.includes('announcements') ? document.getElementById('tab-announcements') : document.getElementById('tab-feedback');
+      if (tab) {
+        tab.click(); // Trigger tab logic
+      }
+    }
+  }
+}
 
 // Registration handlers from script.js (adapted for dashboard)
 const EYE_OPEN_ICON = `
@@ -632,18 +680,324 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPasswordVisibilityToggles();
 });
 
+// --- Profile & Schedule role-based helpers ---
+async function initProfileAndSchedule() {
+  const user = await ensureAuthenticatedSession();
+  if (user) {
+    applyRoleAccess(user);
+    populateProfile(user);
+    loadSchedules(user);
+  }
+}
+
+function populateProfile(user) {
+  const name = document.getElementById('profile-name');
+  const email = document.getElementById('profile-email');
+  const role = document.getElementById('profile-role');
+  const preview = document.getElementById('profile-pic-preview');
+
+  if (name) name.value = user?.first_name || user?.username || '';
+  if (email) email.value = user?.email || '';
+  if (role) role.value = toTitleCase(user?.role || '');
+
+  if (preview) {
+    preview.innerHTML = '';
+    if (user?.profilePicture) {
+      const img = document.createElement('img');
+      img.src = user.profilePicture;
+      img.style.maxWidth = '120px';
+      img.style.borderRadius = '6px';
+      preview.appendChild(img);
+    }
+  }
+}
+
+const profilePicInput = document.getElementById('profile-pic');
+if (profilePicInput) {
+  profilePicInput.addEventListener('change', (e) => {
+    const preview = document.getElementById('profile-pic-preview');
+    preview.innerHTML = '';
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    img.style.maxWidth = '120px';
+    img.style.borderRadius = '6px';
+    preview.appendChild(img);
+  });
+}
+
+const profileSaveBtn = document.getElementById('profile-save-btn');
+if (profileSaveBtn) {
+  profileSaveBtn.addEventListener('click', async () => {
+    const name = document.getElementById('profile-name').value.trim();
+    const email = document.getElementById('profile-email').value.trim();
+    const fileInput = document.getElementById('profile-pic');
+
+    const form = new FormData();
+    form.append('displayName', name);
+    form.append('email', email);
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      form.append('avatar', fileInput.files[0]);
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/staff/profile`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form
+      });
+      if (!resp.ok) throw new Error('Failed to save profile');
+      showToast('Profile updated', 'success');
+      // re-sync session/profile
+      const user = await ensureAuthenticatedSession();
+      if (user) populateProfile(user);
+    } catch (err) {
+      console.error(err);
+      showToast('Unable to save profile (offline placeholder)', 'error');
+    }
+  });
+}
+
+// Profile cancel - reset to session values
+const profileCancelBtn = document.getElementById('profile-cancel-btn');
+if (profileCancelBtn) {
+  profileCancelBtn.addEventListener('click', async () => {
+    const user = await ensureAuthenticatedSession();
+    if (user) populateProfile(user);
+    else {
+      const form = document.getElementById('profile-form');
+      if (form) form.reset();
+      const preview = document.getElementById('profile-pic-preview');
+      if (preview) preview.innerHTML = '';
+    }
+  });
+}
+
+// --- Schedule handling (simple calendar + list). Admins can create/update/delete; others view only ---
+async function loadSchedules(user) {
+  let schedules = [];
+  try {
+    const resp = await fetch(`${API_BASE}/api/schedules`, { credentials: 'include' });
+    if (resp.ok) schedules = await resp.json();
+    else schedules = [];
+  } catch (err) {
+    // fallback demo data - now richer
+    schedules = DUMMY_SCHEDULES;
+  }
+  renderSchedules(schedules, user);
+}
+
+function renderSchedules(schedules, user) {
+  const tbody = document.getElementById('schedule-tbody');
+  const calendar = document.getElementById('calendar-container');
+  if (!tbody || !calendar) return;
+  tbody.innerHTML = '';
+  calendar.innerHTML = '';
+
+  // Simple calendar: show upcoming dates as buttons (read-only)
+  const dates = [...new Set(schedules.map(s => s.date))];
+  const dateList = document.createElement('div');
+  dateList.style.display = 'flex';
+  dateList.style.gap = '8px';
+  dates.forEach(d => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip-btn';
+    btn.textContent = d;
+    btn.addEventListener('click', () => {
+      // filter table to date
+      Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+        tr.style.display = tr.dataset.date === d ? '' : 'none';
+      });
+    });
+    dateList.appendChild(btn);
+  });
+  calendar.appendChild(dateList);
+
+  schedules.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.dataset.date = s.date;
+    tr.innerHTML = `
+      <td class="table-cell">${s.doctor}</td>
+      <td class="table-cell">${s.date}</td>
+      <td class="table-cell">${s.time}</td>
+      <td class="table-cell"></td>
+    `;
+    const actionsTd = tr.querySelector('td:last-child');
+    if (isAdminUser(user)) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn small outline admin-only';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', () => openScheduleModal('edit', s));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn small btn-delete admin-only';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', async () => {
+        if (!confirm('Delete this schedule?')) return;
+        try {
+          const resp = await fetch(`${API_BASE}/api/schedules/${s.id}`, { method: 'DELETE', credentials: 'include' });
+          if (!resp.ok) throw new Error('Delete failed');
+          showToast('Schedule deleted', 'success');
+          initProfileAndSchedule();
+        } catch (err) {
+          console.error(err);
+          showToast('Unable to delete schedule', 'error');
+        }
+      });
+
+      actionsTd.appendChild(editBtn);
+      actionsTd.appendChild(delBtn);
+    } else {
+      actionsTd.textContent = '-';
+    }
+
+    tbody.appendChild(tr);
+  });
+
+  // enforce hiding of admin-only controls if not admin
+  const sessionUserCheck = async () => {
+    const sessionUser = await ensureAuthenticatedSession();
+    if (!isAdminUser(sessionUser)) {
+      document.querySelectorAll('.admin-only').forEach(e => e.classList.add('hidden'));
+    } else {
+      document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+    }
+  };
+  sessionUserCheck();
+}
+
+// Schedule editor modal logic
+function openScheduleModal(mode = 'create', schedule = null) {
+  const modal = document.getElementById('schedule-editor-modal');
+  const form = document.getElementById('schedule-form');
+  const idInput = document.getElementById('sched-id');
+  const doctorInput = document.getElementById('sched-doctor');
+  const dateInput = document.getElementById('sched-date');
+  const timeInput = document.getElementById('sched-time');
+  const deleteBtn = document.getElementById('sched-delete-btn');
+  const errorNode = document.getElementById('sched-form-error');
+
+  if (!modal || !form) return;
+  errorNode.textContent = '';
+  if (mode === 'edit' && schedule) {
+    idInput.value = schedule.id || '';
+    doctorInput.value = schedule.doctor || '';
+    dateInput.value = schedule.date || '';
+    timeInput.value = schedule.time || '';
+    deleteBtn.classList.remove('hidden');
+  } else {
+    idInput.value = '';
+    doctorInput.value = '';
+    dateInput.value = '';
+    timeInput.value = '';
+    deleteBtn.classList.add('hidden');
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeScheduleModal() {
+  const modal = document.getElementById('schedule-editor-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+// submit handler
+const schedForm = document.getElementById('schedule-form');
+if (schedForm) {
+  schedForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('sched-id').value;
+    const doctor = document.getElementById('sched-doctor').value.trim();
+    const date = document.getElementById('sched-date').value;
+    const time = document.getElementById('sched-time').value.trim();
+    const errorNode = document.getElementById('sched-form-error');
+    errorNode.textContent = '';
+
+    if (!doctor || !date || !time) {
+      errorNode.textContent = 'All fields are required.';
+      return;
+    }
+
+    try {
+      const url = id ? `${API_BASE}/api/schedules/${id}` : `${API_BASE}/api/schedules`;
+      const method = id ? 'PUT' : 'POST';
+      const resp = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctor, date, time })
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to save schedule');
+      }
+      showToast(id ? 'Schedule updated' : 'Schedule created', 'success');
+      closeScheduleModal();
+      initProfileAndSchedule();
+    } catch (err) {
+      console.error(err);
+      errorNode.textContent = err.message || 'Network error';
+    }
+  });
+}
+
+// delete from modal
+const schedDeleteBtn = document.getElementById('sched-delete-btn');
+if (schedDeleteBtn) {
+  schedDeleteBtn.addEventListener('click', async () => {
+    const id = document.getElementById('sched-id').value;
+    if (!id) return;
+    if (!confirm('Delete this schedule?')) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/schedules/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!resp.ok) throw new Error('Delete failed');
+      showToast('Schedule deleted', 'success');
+      closeScheduleModal();
+      initProfileAndSchedule();
+    } catch (err) {
+      console.error(err);
+      showToast('Unable to delete schedule', 'error');
+    }
+  });
+}
+
+  // modal cancel
+  const schedCancelBtn = document.getElementById('sched-cancel-btn');
+  if (schedCancelBtn) schedCancelBtn.addEventListener('click', () => closeScheduleModal());
+
+// wire create button to open modal
+const createScheduleBtn = document.getElementById('create-schedule-btn');
+if (createScheduleBtn) {
+  createScheduleBtn.addEventListener('click', () => openScheduleModal('create'));
+}
+
+function initializeDashboard() {
+  // Master init - call all content population functions
+  initProfileAndSchedule();
+  initClinicalData();
+  renderAnnouncements();
+  renderFeedbacks();
+  initDashboardData();
+
+  // Auto-activate dashboard section
+  const dashboardSectionEl = document.getElementById('dashboard-section');
+  const dashboardNavItem = document.querySelector('[data-section="dashboard-section"]');
+  if (dashboardSectionEl) dashboardSectionEl.classList.remove('hidden');
+  if (dashboardNavItem) dashboardNavItem.classList.add('is-active');
+}
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', initializeDashboard);
 
 
-// Section navigation
-// Only attach the generic anchor-based nav handler to top-level <a> links
-// (exclude dropdown items which have their own handlers).
-const navLinks = document.querySelectorAll('a[data-section]:not(.dropdown-item)');
-const dropdownItems = document.querySelectorAll('.dropdown-item');
+
+// Nav-related elements (keep globals for other code)
 const dashboardSection = document.getElementById('dashboard-section');
 const usersSection = document.getElementById('users-section');
-const newRegistrationSection = document.getElementById('new-registration');
 const reportsSection = document.getElementById('reports-section');
-
+const newRegistrationSection = document.getElementById('new-registration');
 
 const statTotalStaff = document.getElementById('stat-total-staff');
 const statPendingStaff = document.getElementById('stat-pending-staff');
@@ -663,40 +1017,21 @@ const citizensTbody = document.getElementById('citizens-tbody');
 const citizensPane = document.getElementById('citizens-pane');
 
 function hideAllSections() {
-  if (dashboardSection) dashboardSection.classList.add('hidden');
-  if (usersSection) usersSection.classList.add('hidden');
-  if (reportsSection) reportsSection.classList.add('hidden');
-  const nonAdminSection = document.getElementById('non-admin-section');
-  if (nonAdminSection) nonAdminSection.classList.add('hidden');
-  // Hide all subsections
-  const accountMgmt = document.getElementById('account-management');
-  if (accountMgmt) accountMgmt.classList.add('hidden');
-  if (newRegistrationSection) newRegistrationSection.classList.add('hidden');
+  // Hide ALL section-top elements
+  document.querySelectorAll('.section-top').forEach(section => section.classList.add('hidden'));
+  // Hide specific panes too
+  document.querySelectorAll('[id*="-pane"].hidden, .tab-pane').forEach(pane => pane.classList.add('hidden'));
 }
-
 
 function clearActiveNav() {
-  navLinks.forEach((link) => link.classList.remove('is-active'));
-  // clear any active nav-buttons
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('is-active'));
+  // Clear ALL active nav states
+  document.querySelectorAll('[data-section], .nav-btn, .nav-item.is-active').forEach(el => el.classList.remove('is-active'));
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
 }
 
-navLinks.forEach(link => {
-  link.addEventListener('click', (e) => {
-    e.preventDefault();
-    const section = link.getAttribute('data-section');
-    hideAllSections();
-    clearActiveNav();
-    link.classList.add('is-active');
-    if (section === 'dashboard' && dashboardSection) {
-      dashboardSection.classList.remove('hidden');
-    } else if (section === 'reports' && reportsSection) {
-      reportsSection.classList.remove('hidden');
-    }
-    // ensure all dropdown menus are closed
-    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
-  });
-});
+
+
+
 
 // Reports tabs switching
 const tabFeedback = document.getElementById('tab-feedback');
@@ -839,68 +1174,7 @@ if (announcementDetailClose) announcementDetailClose.addEventListener('click', (
 
 
 
-dropdownItems.forEach(item => {
-  item.addEventListener('click', (e) => {
-    // Prevent other handlers (including generic nav handlers) from interfering
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    const section = item.getAttribute('data-section');
-    hideAllSections();
-    clearActiveNav();
 
-    // Close all dropdowns
-    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
-
-    // Activate parent nav button if present
-    const parentNavItem = item.closest('.nav-item');
-    const parentNavBtn = parentNavItem ? parentNavItem.querySelector('.nav-btn') : null;
-    if (parentNavBtn) parentNavBtn.classList.add('is-active');
-
-    // Users submenu handling
-    if (section === 'account-management' || section === 'new-registration') {
-      if (usersSection) usersSection.classList.remove('hidden');
-      const subsection = document.getElementById(section);
-      if (subsection) subsection.classList.remove('hidden');
-      // Ensure account management hidden when opening user registration
-      const accountMgmt = document.getElementById('account-management');
-      if (section === 'new-registration' && accountMgmt) accountMgmt.classList.add('hidden');
-      if (section === 'account-management' && accountMgmt) accountMgmt.classList.remove('hidden');
-      return;
-    }
-
-    // Reports submenu handling: show reports and switch panes
-    if (section === 'announcements-pane' || section === 'feedback-pane') {
-      if (reportsSection) reportsSection.classList.remove('hidden');
-
-      // Prefer triggering the tab click handlers (they handle classes + pane visibility)
-      if (section === 'announcements-pane') {
-        if (tabAnnouncements && typeof tabAnnouncements.click === 'function') {
-          tabAnnouncements.click();
-        } else {
-          if (tabAnnouncements) tabAnnouncements.classList.add('active');
-          if (tabFeedback) tabFeedback.classList.remove('active');
-          if (announcementsPane) announcementsPane.classList.remove('hidden');
-          if (feedbackPane) feedbackPane.classList.add('hidden');
-        }
-      } else {
-        if (tabFeedback && typeof tabFeedback.click === 'function') {
-          tabFeedback.click();
-        } else {
-          if (tabFeedback) tabFeedback.classList.add('active');
-          if (tabAnnouncements) tabAnnouncements.classList.remove('active');
-          if (feedbackPane) feedbackPane.classList.remove('hidden');
-          if (announcementsPane) announcementsPane.classList.add('hidden');
-        }
-      }
-      return;
-    }
-
-    // Generic subsection open
-    const subsection = document.getElementById(section);
-    if (subsection) subsection.classList.remove('hidden');
-  });
-});
 
 const dashboardLink = document.querySelector('.nav-item[data-section="dashboard"]');
 if (dashboardLink && !dashboardLink.classList.contains('hidden')) {
@@ -1497,6 +1771,58 @@ let consultations = [];
 let medicines = [];
 let prescriptions = [];
 
+// === DUMMY DATA ARRAYS ===
+const DUMMY_MEDICINES = [
+  { name: 'Paracetamol 500mg', qty: 150, unit: 'tabs' },
+  { name: 'Amoxicillin 500mg', qty: 80, unit: 'capsules' },
+  { name: 'Ibuprofen 400mg', qty: 120, unit: 'tabs' },
+  { name: 'Metformin 500mg', qty: 200, unit: 'tabs' },
+  { name: 'Amlodipine 5mg', qty: 90, unit: 'tabs' },
+  { name: 'Salbutamol Inhaler', qty: 25, unit: 'units' },
+  { name: 'Insulin 100IU/ml', qty: 12, unit: 'vials' },
+  { name: 'Losartan 50mg', qty: 75, unit: 'tabs' },
+  { name: 'Atorvastatin 20mg', qty: 60, unit: 'tabs' }
+];
+
+const DUMMY_SCHEDULES = [
+  { id: 1, doctor: 'Dr. Jane Smith (Cardiologist)', date: '2024-10-15', time: '09:00 - 12:00' },
+  { id: 2, doctor: 'Dr. John Doe (General)', date: '2024-10-15', time: '14:00 - 17:00' },
+  { id: 3, doctor: 'Dr. Maria Garcia (Pediatrician)', date: '2024-10-16', time: '10:00 - 13:00' },
+  { id: 4, doctor: 'Dr. Ahmed Khan (Neurologist)', date: '2024-10-16', time: '15:00 - 18:00' },
+  { id: 5, doctor: 'Dr. Li Wei (Dermatologist)', date: '2024-10-17', time: '09:00 - 12:00' },
+  { id: 6, doctor: 'Dr. Sarah Johnson (Orthopedist)', date: '2024-10-17', time: '14:00 - 17:00' },
+  { id: 7, doctor: 'Dr. Carlos Rodriguez (ENT)', date: '2024-10-18', time: '10:00 - 13:00' },
+  { id: 8, doctor: 'Dr. Emily Chen (Ophthalmologist)', date: '2024-10-18', time: '15:00 - 18:00' },
+  { id: 9, doctor: 'Dr. Michael Brown (Psychiatrist)', date: '2024-10-19', time: '09:00 - 12:00' },
+  { id: 10, doctor: 'Dr. Anna Novak (Gynecologist)', date: '2024-10-19', time: '14:00 - 17:00' },
+  { id: 11, doctor: 'Dr. Raj Patel (Endocrinologist)', date: '2024-10-20', time: '10:00 - 13:00' },
+  { id: 12, doctor: 'Dr. Lisa Wong (Pulmonologist)', date: '2024-10-20', time: '15:00 - 18:00' }
+];
+
+const DUMMY_ANNOUNCEMENTS = [
+  { id: 'A001', title: 'Flu Vaccination Campaign', preview: 'Annual flu shots available at all clinics starting Oct 15. Free for seniors...', date: '2024-10-14' },
+  { id: 'A002', title: 'New Clinic Hours', preview: 'Saturday consultations now available from 9AM-1PM at Main Branch...', date: '2024-10-12' },
+  { id: 'A003', title: 'Telemedicine Update', preview: 'Improved video quality and mobile app integration for remote consults...', date: '2024-10-10' },
+  { id: 'A004', title: 'Staff Training Session', preview: 'Mandatory HIPAA compliance training on Oct 22, 2PM conference room...', date: '2024-10-09' },
+  { id: 'A005', title: 'Patient Portal Upgrade', preview: 'New features: prescription refill requests, lab result viewing...', date: '2024-10-07' },
+  { id: 'A006', title: 'Holiday Schedule Notice', preview: 'Clinic closed Oct 31 (Halloween) and Nov 1. Emergency line active...', date: '2024-10-05' },
+  { id: 'A007', title: 'New Equipment Arrival', preview: 'Digital X-ray machine installed. Faster diagnostics starting Monday...', date: '2024-10-03' },
+  { id: 'A008', title: 'Insurance Update', preview: 'MediCare+ now accepted. Update your insurance details in patient portal...', date: '2024-10-01' }
+];
+
+const DUMMY_FEEDBACKS = [
+  { id: 'F001', from: 'patient123@example.com', subject: 'Excellent service!', date: '2024-10-14', rating: 5 },
+  { id: 'F002', from: 'john.doe@email.com', subject: 'Long wait time', date: '2024-10-13', rating: 3 },
+  { id: 'F003', from: 'sarah.wilson@outlook.com', subject: 'Very professional doctor', date: '2024-10-12', rating: 5 },
+  { id: 'F004', from: 'mike.johnson@gmail.com', subject: 'Prescription issue', date: '2024-10-11', rating: 2 },
+  { id: 'F005', from: 'emily.chen@yahoo.com', subject: 'Great follow-up care', date: '2024-10-10', rating: 4 },
+  { id: 'F006', from: 'david.lee@protonmail.com', subject: 'Clean facility, friendly staff', date: '2024-10-09', rating: 5 },
+  { id: 'F007', from: 'lisa.martinez@icloud.com', subject: 'Billing confusion', date: '2024-10-08', rating: 3 },
+  { id: 'F008', from: 'robert.taylor@gmail.com', subject: 'Outstanding emergency service', date: '2024-10-07', rating: 5 },
+  { id: 'F009', from: 'anna.kovacs@hotmail.com', subject: 'Appointment scheduling easy', date: '2024-10-06', rating: 4 }
+];
+
+
 function loadFromStorage(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -1549,12 +1875,77 @@ function renderMedicines() {
 }
 
 function initClinicalData() {
-  consultations = loadFromStorage('ukonek_consultations');
-  medicines = loadFromStorage('ukonek_medicine_inventory');
-  prescriptions = loadFromStorage('ukonek_prescriptions');
+  consultations = loadFromStorage('ukonek_consultations') || [];
+  medicines = loadFromStorage('ukonek_medicine_inventory') || DUMMY_MEDICINES;
+  if (medicines.length === 0) {
+    medicines = [...DUMMY_MEDICINES];
+    saveToStorage('ukonek_medicine_inventory', medicines);
+  }
+  prescriptions = loadFromStorage('ukonek_prescriptions') || [];
   renderConsultations();
   renderMedicines();
 }
+
+function loadAnnouncements() {
+  try {
+    const raw = localStorage.getItem('ukonek_announcements');
+    return raw ? JSON.parse(raw) : DUMMY_ANNOUNCEMENTS;
+  } catch (err) {
+    return DUMMY_ANNOUNCEMENTS;
+  }
+}
+
+function renderAnnouncements() {
+  const tbody = document.getElementById('announcements-tbody');
+  if (!tbody) return;
+  const announcements = loadAnnouncements();
+  tbody.innerHTML = '';
+  announcements.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.className = 'announcement-row';
+    tr.innerHTML = `
+      <td class="table-cell">${a.title}</td>
+      <td class="table-cell">${(a.preview || '').substring(0, 80)}${(a.preview || '').length > 80 ? '...' : ''}</td>
+      <td class="table-cell">${a.date}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // Update stats
+  if (document.getElementById('stat-announcements')) {
+    document.getElementById('stat-announcements').textContent = String(announcements.length);
+  }
+}
+
+function loadFeedbacks() {
+  try {
+    const raw = localStorage.getItem('ukonek_feedback');
+    return raw ? JSON.parse(raw) : DUMMY_FEEDBACKS;
+  } catch (err) {
+    return DUMMY_FEEDBACKS;
+  }
+}
+
+function renderFeedbacks() {
+  const tbody = document.getElementById('feedback-tbody');
+  if (!tbody) return;
+  const feedbacks = loadFeedbacks();
+  tbody.innerHTML = '';
+  feedbacks.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.className = 'feedback-row';
+    tr.innerHTML = `
+      <td class="table-cell">${f.from}</td>
+      <td class="table-cell">${f.subject}</td>
+      <td class="table-cell">${f.date}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // Update stats
+  if (document.getElementById('stat-reports')) {
+    document.getElementById('stat-reports').textContent = String(feedbacks.length);
+  }
+}
+
 
 initClinicalData();
 

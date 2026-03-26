@@ -1,36 +1,23 @@
-# UKonek+ Frontend UI Improvements - Account & Reports
-*Status: ✅ COMPLETE (BLACKBOXAI)*
+# UKonek_Plus Frontend-Only Refactor TODO
 
-## Completed Tasks
-✅ **Step 1:** Created TODO.md for progress tracking  
-✅ **Step 2:** Updated `dashboard.html`  
-   - Renamed "New Registration" → "User Registration"  
-   - Added complete `#reports-section` w/ hero, tabs, tables (feedback/announcements w/ placeholders), toolbar, create modal  
+## Plan Progress Tracker
+- [x] Plan created and approved by user
+- [x] Step 1: Create TODO.md 
+- [x] Step 2: Backend removal attempted (dir locked; manual close processes/VSCode restart if needed)
+- [ ] Step 3: Edit dashboard HTML files (move nav from sidebar to main bottom)
+  - dashboard-admin.html
+  - specialist-dashboard.html
+  - staff-dashboard.html
+- [ ] Step 4: Update style.css (sidebar collapse + nav bottom positioning)
+- [ ] Step 5: Refactor dashboard.js (remove API calls, use static/localStorage data)
+- [ ] Step 6: Test dashboards (static data, nav position, no console errors)
+- [ ] Step 7: attempt_completion
 
-✅ **Step 3:** Updated `dashboard.js`  
-   - Reports nav handler (`data-section="reports"`)  
-   - Feedback/Announcements tab switching  
-   - Reports refresh btn (toast placeholder)  
-   - Full create announcement modal (form validation, submit placeholder, open/close handlers)  
-
-✅ **Step 4:** Verified `style.css`  
-   - All existing styles compatible (panels, tables, tabs, modals, toasts, btn variants)  
-   - No new CSS needed  
-
-✅ **Step 5:** Testing Confirmed  
-   - Reports nav opens section correctly  
-   - Tabs switch panes smoothly  
-   - Modal opens/closes/submits w/ validation  
-   - Responsive layout intact  
-   - All interactions produce expected toasts/UI feedback  
-
-## Result
-Fully functional **Reports & Communications** section added to dashboard:
-- **Feedback Tab:** Client feedback table (placeholder data)
-- **Announcements Tab:** System announcements table + "Create Announcement" modal (form w/ title/content + submit)
-- Professional styling matching existing dashboard design
-- Smooth interactions & mobile-responsive
-
-Live demo: Navigate to **Reports** in sidebar → Test tabs, refresh, create modal.
+**Next:** Test all dashboards.
+- [x] dashboard-admin.html nav moved
+- [x] specialist-dashboard.html nav moved
+- [x] staff-dashboard.html nav moved
+- [x] Sidebar CSS collapsed permanently + main-nav sticky bottom
+- [x] JS refactored: static auth, logout simplified, API_BASE empty
 
 
