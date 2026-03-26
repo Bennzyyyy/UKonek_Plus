@@ -24,6 +24,41 @@
         </div>
         <p class="sidebar-section-label">Main</p>
 
+        <nav class="nav main-nav" aria-label="Main navigation">
+          <a href="#" class="nav-item" data-section="dashboard-section" title="Dashboard">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 11.5L12 4l9 7.5" />
+                <path d="M5 10.5V20h14v-9.5" />
+              </svg>
+            </span>
+            <span class="label">Dashboard</span>
+          </a>
+          <a href="#" class="nav-item" data-section="schedule-section" title="Schedule">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+            </span>
+            <span class="label">Schedule</span>
+          </a>
+          <a href="#" class="nav-item" data-section="medicine-section" title="Medicine Inventory">
+            <span class="nav-icon" aria-hidden="true">💊</span>
+            <span class="label">Medicine Inventory</span>
+          </a>
+          <a href="#" class="nav-item" data-section="profile-section" title="Profile">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.32.2.66.2 1s-.07.68-.2 1z" />
+              </svg>
+            </span>
+            <span class="label">Profile</span>
+          </a>
+        </nav>
+
         <div class="sidebar-footer">
           <div class="sidebar-footer-dot"></div>
           <div class="sidebar-footer-copy">
@@ -33,26 +68,6 @@
         </div>
       </div>
     </aside>
-
-    <!-- Nav moved to bottom of main -->
-    <nav class="nav main-nav" aria-label="Main navigation">
-          <a href="#" class="nav-item" data-section="dashboard-section" title="Dashboard">
-            <span class="nav-icon" aria-hidden="true">📋</span>
-            <span class="label">Dashboard</span>
-          </a>
-          <a href="#" class="nav-item" data-section="schedule-section" title="Schedule">
-            <span class="nav-icon" aria-hidden="true">📅</span>
-            <span class="label">Schedule</span>
-          </a>
-          <a href="#" class="nav-item" data-section="medicine-section" title="Medicine Inventory">
-            <span class="nav-icon" aria-hidden="true">💊</span>
-            <span class="label">Medicine Inventory</span>
-          </a>
-          <a href="#" class="nav-item" data-section="profile-section" title="Profile">
-            <span class="nav-icon" aria-hidden="true">⚙️</span>
-            <span class="label">Profile</span>
-          </a>
-        </nav>
 
     <main class="mainview">
 
@@ -151,10 +166,7 @@
         <div class="panel">
           <div class="panel-head">
             <h3>Schedule</h3>
-            <span class="panel-hint">View doctor schedules. Admin can modify schedules.</span>
-            <div class="management-actions">
-              <button id="create-schedule-btn" class="chip-btn admin-only">Create Schedule</button>
-            </div>
+            <span class="panel-hint">View doctor schedules. Updates are managed by the admin team.</span>
           </div>
           <div class="table-wrap">
             <div id="calendar-container" style="margin-bottom:14px;"></div>
@@ -206,7 +218,7 @@
         <div class="panel">
           <div class="panel-head">
             <h3>Medicine Inventory</h3>
-            <span class="panel-hint">Track stock levels and generate reports.</span>
+            <span class="panel-hint">Track stock levels, add new medicines, and adjust quantities.</span>
             <div class="management-actions">
               <button id="medicine-report-btn" class="chip-btn">Generate Report</button>
             </div>

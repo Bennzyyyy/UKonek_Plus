@@ -3,6 +3,104 @@ const burger = document.getElementById('burger');
 
 // No backend - static/localStorage only
 const API_BASE = '';
+const isDemoMode = !API_BASE;
+
+let cachedSessionUser = null;
+let sessionUserRole = null;
+
+function detectRoleFromTitle() {
+  const title = document.title.toLowerCase();
+  if (title.includes('admin')) return 'admin';
+  if (title.includes('specialist')) return 'specialist';
+  return 'staff';
+}
+
+const DEMO_REGISTERED_USERS = [
+  {
+    username: 'asmith',
+    first_name: 'Alice',
+    last_name: 'Smith',
+    employee_id: 'UK-1001',
+    role: 'doctor',
+    status: 'Active',
+    created_at: '2024-11-05T09:00:00Z',
+    email: 'asmith@ukonek.local',
+    birthday: '1990-03-02'
+  },
+  {
+    username: 'bcruz',
+    first_name: 'Ben',
+    last_name: 'Cruz',
+    employee_id: 'UK-1007',
+    role: 'nurse',
+    status: 'Active',
+    created_at: '2024-11-10T10:30:00Z',
+    email: 'bcruz@ukonek.local',
+    birthday: '1988-07-22'
+  },
+  {
+    username: 'creyes',
+    first_name: 'Carla',
+    last_name: 'Reyes',
+    employee_id: 'UK-1015',
+    role: 'admin',
+    status: 'Inactive',
+    created_at: '2024-12-01T08:15:00Z',
+    email: 'creyes@ukonek.local',
+    birthday: '1985-01-14'
+  }
+];
+
+const DEMO_PENDING_USERS = [
+  {
+    username: 'dramos',
+    first_name: 'Dan',
+    last_name: 'Ramos',
+    employee_id: 'UK-2031',
+    role: 'doctor',
+    email: 'dramos@ukonek.local',
+    created_at: '2024-12-12T04:00:00Z',
+    specialization: 'Cardiology',
+    schedule: JSON.stringify({ days: ['Tue', 'Thu'], startHour: 9, endHour: 12 })
+  },
+  {
+    username: 'mgalang',
+    first_name: 'Mira',
+    last_name: 'Galang',
+    employee_id: 'UK-2037',
+    role: 'nurse',
+    email: 'mgalang@ukonek.local',
+    created_at: '2024-12-15T07:45:00Z',
+    specialization: 'Community Health',
+    schedule: JSON.stringify({ days: ['Mon', 'Wed', 'Fri'], startHour: 8, endHour: 11 })
+  }
+];
+
+const DEMO_CITIZENS = [
+  {
+    username: 'jmendoza',
+    email: 'jmendoza@example.com',
+    created_at: '2024-10-05T13:25:00Z',
+    status: 'Active'
+  },
+  {
+    username: 'ldelacruz',
+    email: 'ldelacruz@example.com',
+    created_at: '2024-09-18T06:15:00Z',
+    status: 'Active'
+  },
+  {
+    username: 'rkho',
+    email: 'rkho@example.com',
+    created_at: '2024-11-20T16:40:00Z',
+    status: 'Inactive'
+  }
+];
+
+const demoDelay = (ms = 500) => new Promise((resolve) => setTimeout(resolve, ms));
+const makeDemoId = () => (typeof crypto !== 'undefined' && crypto.randomUUID
+  ? crypto.randomUUID()
+  : `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 
 function showToast(message, type = 'info') {
@@ -34,10 +132,13 @@ function showToast(message, type = 'info') {
 }
 
 function state() {
-  if (!sidebar) return;
+  if (!sidebar || !burger) return;
   const collapsed = sidebar.classList.contains('collapsed');
   const slid = sidebar.classList.contains('slid');
-  burger.textContent = (slid || !collapsed) ? '←' : '☰';
+  const isMobile = window.innerWidth <= 900;
+  const expanded = isMobile ? slid : !collapsed;
+  burger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  burger.classList.toggle('is-expanded', expanded);
 }
 
 if (burger) {
@@ -77,6 +178,11 @@ const logoutBtn = document.getElementById('logout-btn');
 const logoutConfirmModal = document.getElementById('logout-confirm-modal');
 const logoutConfirmYesBtn = document.getElementById('logout-confirm-yes');
 const logoutConfirmNoBtn = document.getElementById('logout-confirm-no');
+const notifBtn = document.getElementById('notif-btn');
+const notificationPanel = document.getElementById('notification-panel');
+const notificationList = document.getElementById('notification-list');
+const notificationEmptyState = document.getElementById('notification-empty');
+const notificationCloseBtn = document.getElementById('notif-close-btn');
 
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
@@ -105,17 +211,39 @@ if (logoutConfirmNoBtn) {
   });
 }
 
-async function ensureAuthenticatedSession() {
-  // Mock static user based on page title (role detection)
-  const title = document.title.toLowerCase();
-  const role = title.includes('admin') ? 'admin' : title.includes('specialist') ? 'specialist' : 'staff';
-  return {
+if (notifBtn && notificationPanel) {
+  notifBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    toggleNotificationPanel();
+  });
+}
+
+if (notificationCloseBtn) {
+  notificationCloseBtn.addEventListener('click', () => hideNotificationPanel());
+}
+
+async function ensureAuthenticatedSession(force = false) {
+  if (!force && cachedSessionUser) {
+    sessionUserRole = cachedSessionUser.role || sessionUserRole;
+    return cachedSessionUser;
+  }
+
+  const role = detectRoleFromTitle();
+  const profile = {
     role,
     username: 'Demo User',
     email: 'demo@ukonek.local',
     first_name: 'Demo',
     status: 'active'
   };
+
+  cachedSessionUser = profile;
+  sessionUserRole = role;
+  return profile;
+}
+
+function getSessionRole() {
+  return (sessionUserRole || detectRoleFromTitle()).toLowerCase();
 }
 
 
@@ -179,6 +307,8 @@ function applyRoleAccess(user) {
     });
   }
 
+  sessionUserRole = String(user?.role || detectRoleFromTitle()).trim().toLowerCase() || sessionUserRole;
+
   const userNameNode = document.querySelector('.user-name');
   if (userNameNode) {
     userNameNode.textContent = getDisplayFirstName(user);
@@ -200,6 +330,22 @@ function applyRoleAccess(user) {
   clearActiveNav();
   updateNonAdminWorkspace(user);
   if (nonAdminSection) nonAdminSection.classList.remove('hidden');
+}
+
+const MEDICINE_PERMISSIONS = {
+  admin: { adjust: false, add: false },
+  specialist: { adjust: true, add: false },
+  staff: { adjust: true, add: true }
+};
+
+function canAdjustMedicineInventory(role = getSessionRole()) {
+  const key = (role || '').toLowerCase();
+  return Boolean(MEDICINE_PERMISSIONS[key]?.adjust);
+}
+
+function canAddNewMedicine(role = getSessionRole()) {
+  const key = (role || '').toLowerCase();
+  return Boolean(MEDICINE_PERMISSIONS[key]?.add);
 }
 
 window.addEventListener('pageshow', async (event) => {
@@ -239,6 +385,10 @@ if (navContainer) {
     e.stopPropagation();
 
     const sectionId = el.getAttribute('data-section');
+    const sectionOptions = {
+      tab: el.dataset.tab,
+      pane: el.dataset.pane
+    };
     const isDropdownBtn = el.classList.contains('nav-btn');
     const isDropdownItem = el.classList.contains('dropdown-item');
     const parentItem = el.closest('.nav-item.dropdown');
@@ -266,12 +416,120 @@ if (navContainer) {
         if (parentBtn) parentBtn.classList.add('is-active');
       }
 
-      showSection(sectionId || el.getAttribute('data-section'));
+      showSection(sectionId || el.getAttribute('data-section'), sectionOptions);
     }
   });
 }
 
-async function showSection(sectionId) {
+function parseDateValue(value) {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getTodayNotifications() {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
+
+  const isToday = (value) => {
+    const parsed = parseDateValue(value);
+    return parsed && parsed >= startOfDay && parsed < endOfDay;
+  };
+
+  const items = [];
+
+  latestAnnouncementsList.forEach((announcement) => {
+    if (!isToday(announcement?.date)) return;
+    items.push({
+      type: 'Announcement',
+      title: announcement?.title || 'Announcement',
+      detail: announcement?.preview || announcement?.content || '',
+      date: parseDateValue(announcement?.date)
+    });
+  });
+
+  latestFeedbackList.forEach((feedback) => {
+    if (!isToday(feedback?.date)) return;
+    items.push({
+      type: 'Feedback',
+      title: feedback?.subject || 'Feedback received',
+      detail: feedback?.from || 'Anonymous',
+      date: parseDateValue(feedback?.date)
+    });
+  });
+
+  return items.sort((a, b) => {
+    const aTime = a.date ? a.date.getTime() : 0;
+    const bTime = b.date ? b.date.getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
+function populateNotificationPanel() {
+  if (!notificationList) return;
+  const items = getTodayNotifications();
+  notificationList.innerHTML = '';
+
+  if (!items.length) {
+    if (notificationEmptyState) notificationEmptyState.classList.remove('hidden');
+    return;
+  }
+
+  if (notificationEmptyState) notificationEmptyState.classList.add('hidden');
+
+  items.forEach((item) => {
+    const li = document.createElement('li');
+    const typeLabel = document.createElement('span');
+    typeLabel.className = 'notif-type';
+    typeLabel.textContent = item.type;
+    li.appendChild(typeLabel);
+
+    const strong = document.createElement('strong');
+    strong.textContent = item.title;
+    li.appendChild(strong);
+
+    const meta = document.createElement('span');
+    meta.className = 'notif-meta';
+    const timeStamp = item.date ? item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today';
+    meta.textContent = item.detail ? `${timeStamp} • ${item.detail}` : timeStamp;
+    li.appendChild(meta);
+
+    notificationList.appendChild(li);
+  });
+}
+
+function showNotificationPanel() {
+  if (!notificationPanel) return;
+  populateNotificationPanel();
+  notificationPanel.classList.remove('hidden');
+}
+
+function hideNotificationPanel() {
+  if (!notificationPanel) return;
+  notificationPanel.classList.add('hidden');
+}
+
+function toggleNotificationPanel() {
+  if (!notificationPanel) return;
+  const willShow = notificationPanel.classList.contains('hidden');
+  if (willShow) showNotificationPanel();
+  else hideNotificationPanel();
+}
+
+document.addEventListener('click', (event) => {
+  if (!notificationPanel || notificationPanel.classList.contains('hidden')) return;
+  if (notificationPanel.contains(event.target)) return;
+  if (notifBtn && notifBtn.contains(event.target)) return;
+  hideNotificationPanel();
+});
+
+async function showSection(sectionId, options = {}) {
   if (!sectionId) return;
 
   const targetSection = document.getElementById(sectionId);
@@ -296,25 +554,20 @@ async function showSection(sectionId) {
         break;
       // Add more as needed
     }
-    return;
-  }
+    const { tab, pane } = options;
 
-  // Special handling for parent sections + subsections (unchanged)
-  const parentSection = document.getElementById('users-section') || document.getElementById('reports-section');
-  if (parentSection) {
-    parentSection.classList.remove('hidden');
-    
-    // Handle sub-tabs/panes for users/reports
-    if (sectionId.includes('account-management') || sectionId.includes('new-registration')) {
-      const registeredPane = document.getElementById('registered-pane');
-      if (sectionId.includes('account-management') && registeredPane) registeredPane.classList.remove('hidden');
-      // Hide other panes...
-    } else if (sectionId.includes('announcements') || sectionId.includes('feedback')) {
-      const tab = sectionId.includes('announcements') ? document.getElementById('tab-announcements') : document.getElementById('tab-feedback');
-      if (tab) {
-        tab.click(); // Trigger tab logic
-      }
+    if (sectionId === 'users-section') {
+      toggleUsersPane(pane || 'accounts-pane');
+    } else if (pane) {
+      revealPane(pane);
     }
+
+    if (tab) {
+      const tabBtn = document.getElementById(tab);
+      if (tabBtn) tabBtn.click();
+    }
+
+    return;
   }
 }
 
@@ -368,6 +621,7 @@ const registrationSuccessModal = document.getElementById('registration-success-m
 const regSuccessDashboardBtn = document.getElementById('reg-success-dashboard-btn');
 const regSuccessUsersBtn = document.getElementById('reg-success-users-btn');
 const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
+const registrationBackBtn = document.getElementById('registration-back-btn');
 const registerResendOtpBtn = document.getElementById('register-resend-otp-btn');
 
 // --- FIXED REGISTRATION HANDLER ---
@@ -388,41 +642,73 @@ if (registerForm) {
     const err = document.getElementById('register-error');
     const success = document.getElementById('register-success');
 
-    err.style.display = 'none';
+    if (err) {
+      err.textContent = '';
+      err.style.display = 'none';
+    }
+    if (success) {
+      success.textContent = '';
+      success.style.display = 'none';
+    }
+
     if (!first_name || !last_name || !email || !role) {
-      err.textContent = 'Please fill in all required fields.';
-      err.style.display = 'block';
+      if (err) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+      }
       return;
     }
 
     // Visual feedback
-    registerSubmitBtn.disabled = true;
-    const label = registerSubmitBtn.querySelector('.btn-label');
-    if (label) label.textContent = 'SENDING OTP...';
+    if (registerSubmitBtn) {
+      registerSubmitBtn.disabled = true;
+      const label = registerSubmitBtn.querySelector('.btn-label');
+      if (label) label.textContent = 'SENDING OTP...';
+    }
 
     try {
-      const response = await fetch(`${API_BASE}/api/staff/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name, middle_name, last_name, birthday, gender, employee_id, email, role }),
-        credentials: 'include'
-      });
+      const payload = { first_name, middle_name, last_name, birthday, gender, employee_id, email, role };
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Registration failed');
+      if (isDemoMode) {
+        await demoDelay();
+        pendingRegistrationProfile = payload;
+        if (registerOtpModal) registerOtpModal.classList.remove('hidden');
+        if (success) {
+          success.textContent = 'Demo OTP sent. Please continue in the modal.';
+          success.style.display = 'block';
+        }
+        showToast('Demo OTP sent to email', 'info');
+      } else {
+        const response = await fetch(`${API_BASE}/api/staff/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'include'
+        });
 
-      pendingRegistrationProfile = { first_name, middle_name, last_name, birthday, gender, employee_id, email, role };
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Registration failed');
 
-      // Open OTP Modal
-      if (registerOtpModal) registerOtpModal.classList.remove('hidden');
-      showToast('OTP sent to email', 'info');
+        pendingRegistrationProfile = payload;
+        if (registerOtpModal) registerOtpModal.classList.remove('hidden');
+        if (success) {
+          success.textContent = data.message || 'OTP sent to email.';
+          success.style.display = 'block';
+        }
+        showToast('OTP sent to email', 'info');
+      }
 
     } catch (error) {
-      err.textContent = error.message;
-      err.style.display = 'block';
+      if (err) {
+        err.textContent = error.message || 'Unable to submit registration.';
+        err.style.display = 'block';
+      }
     } finally {
-      registerSubmitBtn.disabled = false;
-      if (label) label.textContent = 'SEND OTP';
+      if (registerSubmitBtn) {
+        registerSubmitBtn.disabled = false;
+        const label = registerSubmitBtn.querySelector('.btn-label');
+        if (label) label.textContent = 'SEND OTP';
+      }
     }
   });
 }
@@ -497,11 +783,44 @@ if (registerOtpForm) {
       return;
     }
 
-    otpCompleteBtn.disabled = true;
-    const otpLabel = otpCompleteBtn.querySelector('.btn-label');
-    if (otpLabel) otpLabel.textContent = 'CREATING ACCOUNT...';
+    if (otpCompleteBtn) {
+      otpCompleteBtn.disabled = true;
+      const otpLabel = otpCompleteBtn.querySelector('.btn-label');
+      if (otpLabel) otpLabel.textContent = 'CREATING ACCOUNT...';
+    }
 
     try {
+      if (isDemoMode) {
+        await demoDelay();
+
+        if (registerOtpModal) registerOtpModal.classList.add('hidden');
+        if (registerForm) registerForm.reset();
+        registerOtpForm.reset();
+
+        const demoUser = {
+          username,
+          first_name: pendingRegistrationProfile?.first_name || username,
+          last_name: pendingRegistrationProfile?.last_name || '',
+          employee_id: pendingRegistrationProfile?.employee_id || `UK-${Date.now()}`,
+          role: pendingRegistrationProfile?.role || 'staff',
+          status: 'Active',
+          created_at: new Date().toISOString(),
+          email: pendingRegistrationProfile?.email || `${username}@demo.local`,
+          birthday: pendingRegistrationProfile?.birthday || ''
+        };
+
+        DEMO_REGISTERED_USERS.unshift(demoUser);
+        const pendingIndex = DEMO_PENDING_USERS.findIndex((entry) => entry.employee_id === demoUser.employee_id);
+        if (pendingIndex > -1) DEMO_PENDING_USERS.splice(pendingIndex, 1);
+        storedAccounts.clear();
+        await Promise.all([loadStaffData(), loadPendingStaffData()]);
+
+        pendingRegistrationProfile = null;
+        if (registrationSuccessModal) registrationSuccessModal.classList.remove('hidden');
+        showToast('Demo account created.', 'success');
+        return;
+      }
+
       const completeResponse = await fetch(`${API_BASE}/api/staff/complete-registration`, {
         method: 'POST',
         credentials: 'include',
@@ -527,7 +846,7 @@ if (registerOtpForm) {
       }
 
       if (registerOtpModal) registerOtpModal.classList.add('hidden');
-      registerForm.reset();
+      if (registerForm) registerForm.reset();
       registerOtpForm.reset();
       pendingRegistrationProfile = null;
 
@@ -539,8 +858,11 @@ if (registerOtpForm) {
         otpModalError.style.display = 'block';
       }
     } finally {
-      otpCompleteBtn.disabled = false;
-      if (otpLabel) otpLabel.textContent = 'COMPLETE REGISTRATION';
+      if (otpCompleteBtn) {
+        otpCompleteBtn.disabled = false;
+        const otpLabel = otpCompleteBtn.querySelector('.btn-label');
+        if (otpLabel) otpLabel.textContent = 'COMPLETE REGISTRATION';
+      }
     }
   });
 }
@@ -564,7 +886,7 @@ if (registerResendOtpBtn) {
       return;
     }
 
-    err.style.display = 'none';
+    if (err) err.style.display = 'none';
     if (otpModalError) otpModalError.style.display = 'none';
     if (otpModalSuccess) otpModalSuccess.style.display = 'none';
 
@@ -574,25 +896,34 @@ if (registerResendOtpBtn) {
     registerResendOtpBtn.textContent = 'Sending...';
 
     try {
-      const response = await fetch(`${API_BASE}/api/staff/register`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pendingRegistrationProfile)
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (otpModalError) {
-          otpModalError.textContent = data.message || 'Failed to resend OTP.';
-          otpModalError.style.display = 'block';
+      if (isDemoMode) {
+        await demoDelay();
+        if (otpModalSuccess) {
+          otpModalSuccess.style.display = 'block';
+          otpModalSuccess.textContent = 'Demo OTP resent. Please check email.';
         }
-        return;
-      }
+        showToast('Demo OTP resent.', 'info');
+      } else {
+        const response = await fetch(`${API_BASE}/api/staff/register`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pendingRegistrationProfile)
+        });
+        const data = await response.json();
 
-      if (otpModalSuccess) {
-        otpModalSuccess.style.display = 'block';
-        otpModalSuccess.textContent = data.message || 'OTP resent. Please check email.';
+        if (!response.ok) {
+          if (otpModalError) {
+            otpModalError.textContent = data.message || 'Failed to resend OTP.';
+            otpModalError.style.display = 'block';
+          }
+          return;
+        }
+
+        if (otpModalSuccess) {
+          otpModalSuccess.style.display = 'block';
+          otpModalSuccess.textContent = data.message || 'OTP resent. Please check email.';
+        }
       }
     } catch (error) {
       console.error('Error:', error);
@@ -621,7 +952,7 @@ if (regSuccessDashboardBtn) {
 if (regSuccessUsersBtn) {
   regSuccessUsersBtn.addEventListener('click', () => {
     if (registrationSuccessModal) registrationSuccessModal.classList.add('hidden');
-    openUsersSubsection('account-management');
+    navigateToSection('users-section', { pane: 'accounts-pane', tab: 'tab-registered' });
   });
 }
 
@@ -630,6 +961,14 @@ if (backToDashboardBtn) {
   backToDashboardBtn.addEventListener('click', () => {
     hideAllSections();
     if (dashboardSection) dashboardSection.classList.remove('hidden');
+  });
+}
+
+if (registrationBackBtn) {
+  registrationBackBtn.addEventListener('click', () => {
+    toggleUsersPane('accounts-pane');
+    const defaultUsersTab = document.getElementById('tab-registered');
+    if (defaultUsersTab) defaultUsersTab.click();
   });
 }
 
@@ -854,6 +1193,17 @@ function renderSchedules(schedules, user) {
     }
 
     tbody.appendChild(tr);
+    attachDetailRow(tr, () => ({
+      tag: 'Schedule',
+      title: s.doctor || 'Schedule Detail',
+      subtitle: s.date ? `${s.date} • ${s.time || ''}`.trim() : s.time || '',
+      items: [
+        { label: 'Doctor', value: s.doctor },
+        { label: 'Date', value: s.date },
+        { label: 'Time', value: s.time },
+        { label: 'Schedule ID', value: s.id || '—' }
+      ]
+    }));
   });
 
   // enforce hiding of admin-only controls if not admin
@@ -989,7 +1339,10 @@ function initializeDashboard() {
 }
 
 // Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', initializeDashboard);
+document.addEventListener('DOMContentLoaded', () => {
+  initializeDashboard();
+  navigateToSection('dashboard-section');
+});
 
 
 
@@ -1015,6 +1368,30 @@ const dashOpenPendingBtn = document.getElementById('dash-open-pending-btn');
 const refreshAccountsBtn = document.getElementById('refresh-accounts-btn');
 const citizensTbody = document.getElementById('citizens-tbody');
 const citizensPane = document.getElementById('citizens-pane');
+const userPaneIds = ['accounts-pane', 'registration-pane'];
+const chartAnimationState = { frameId: null };
+
+function toggleUsersPane(targetId = 'accounts-pane') {
+  userPaneIds.forEach((paneId) => {
+    const pane = document.getElementById(paneId);
+    if (!pane) return;
+    if (paneId === targetId) pane.classList.remove('hidden');
+    else pane.classList.add('hidden');
+  });
+}
+
+function revealPane(paneId) {
+  if (!paneId) return;
+  const paneEl = document.getElementById(paneId);
+  if (!paneEl) return;
+  paneEl.classList.remove('hidden');
+  const parent = paneEl.parentElement;
+  if (!parent) return;
+  Array.from(parent.children).forEach((sibling) => {
+    if (sibling === paneEl) return;
+    if (sibling.id && sibling.id.endsWith('-pane')) sibling.classList.add('hidden');
+  });
+}
 
 function hideAllSections() {
   // Hide ALL section-top elements
@@ -1027,6 +1404,14 @@ function clearActiveNav() {
   // Clear ALL active nav states
   document.querySelectorAll('[data-section], .nav-btn, .nav-item.is-active').forEach(el => el.classList.remove('is-active'));
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+}
+
+function navigateToSection(sectionId, options = {}) {
+  hideAllSections();
+  clearActiveNav();
+  showSection(sectionId, options);
+  const navMatch = document.querySelector(`.nav [data-section="${sectionId}"]`);
+  if (navMatch) navMatch.classList.add('is-active');
 }
 
 
@@ -1146,21 +1531,127 @@ const announcementDetailClose = document.getElementById('announcement-detail-clo
 const announcementDetailTitle = document.getElementById('announcement-detail-title');
 const announcementDetailBody = document.getElementById('announcement-detail-body');
 const announcementDetailDate = document.getElementById('announcement-detail-date');
+const dataDetailModal = document.getElementById('data-detail-modal');
+const dataDetailCloseBtn = document.getElementById('data-detail-close');
+const dataDetailDismissBtn = document.getElementById('data-detail-dismiss');
+const dataDetailActions = document.getElementById('data-detail-actions');
+const dataDetailTitle = document.getElementById('data-detail-title');
+const dataDetailSubtitle = document.getElementById('data-detail-subtitle');
+const dataDetailList = document.getElementById('data-detail-list');
+const dataDetailTag = document.getElementById('data-detail-tag');
 
-function openAnnouncementDetail(row) {
-  const cells = row.querySelectorAll('td');
-  const title = cells[0]?.innerText.trim() || 'Announcement';
-  const preview = cells[1]?.innerText.trim() || '';
-  const date = cells[2]?.innerText.trim() || '';
-  if (announcementDetailTitle) announcementDetailTitle.textContent = title;
-  if (announcementDetailBody) announcementDetailBody.textContent = preview;
-  if (announcementDetailDate) announcementDetailDate.textContent = date;
-  if (announcementDetailModal) announcementDetailModal.classList.remove('hidden');
+function formatDetailValue(value) {
+  if (value === null || value === undefined) return '—';
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '—' : value.toLocaleString();
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).length ? JSON.stringify(value, null, 2) : '—';
+  }
+  const str = String(value).trim();
+  return str || '—';
 }
 
-document.querySelectorAll('.announcement-row').forEach(row => {
+function openDataDetail(config = {}) {
+  if (!dataDetailModal) return;
+  const {
+    title = 'Record Detail',
+    subtitle = '',
+    tag = '',
+    items = [],
+    actions = []
+  } = config;
+
+  if (dataDetailTitle) dataDetailTitle.textContent = title;
+  if (dataDetailSubtitle) {
+    dataDetailSubtitle.textContent = subtitle || '';
+    dataDetailSubtitle.style.display = subtitle ? 'block' : 'none';
+  }
+  if (dataDetailTag) {
+    dataDetailTag.textContent = tag || '';
+    dataDetailTag.style.display = tag ? 'block' : 'none';
+  }
+
+  if (dataDetailList) {
+    dataDetailList.innerHTML = '';
+    if (!items.length) {
+      const fallbackDt = document.createElement('dt');
+      fallbackDt.textContent = 'Details';
+      const fallbackDd = document.createElement('dd');
+      fallbackDd.textContent = 'No additional data available.';
+      dataDetailList.appendChild(fallbackDt);
+      dataDetailList.appendChild(fallbackDd);
+    } else {
+      items.forEach(({ label, value }) => {
+        const dt = document.createElement('dt');
+        dt.textContent = label || '';
+        const dd = document.createElement('dd');
+        dd.textContent = formatDetailValue(value);
+        dataDetailList.appendChild(dt);
+        dataDetailList.appendChild(dd);
+      });
+    }
+  }
+
+  if (dataDetailActions) {
+    dataDetailActions.querySelectorAll('button[data-detail-dynamic="true"]').forEach(btn => btn.remove());
+    if (Array.isArray(actions) && actions.length) {
+      actions.forEach(action => {
+        if (!action || typeof action.onClick !== 'function') return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.detailDynamic = 'true';
+        const baseClass = action.className || 'btn';
+        btn.className = baseClass;
+        btn.textContent = action.label || 'Action';
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          action.onClick(event);
+        });
+        if (dataDetailDismissBtn) {
+          dataDetailActions.insertBefore(btn, dataDetailDismissBtn);
+        } else {
+          dataDetailActions.appendChild(btn);
+        }
+      });
+    }
+  }
+
+  dataDetailModal.classList.remove('hidden');
+}
+
+function closeDataDetail() {
+  if (dataDetailModal) dataDetailModal.classList.add('hidden');
+}
+
+function attachDetailRow(row, detailFactory) {
+  if (!row || typeof detailFactory !== 'function' || !dataDetailModal) return;
+  if (row.dataset.detailAttached === 'true') return;
+  row.dataset.detailAttached = 'true';
   row.style.cursor = 'pointer';
-  row.addEventListener('click', () => openAnnouncementDetail(row));
+  row.addEventListener('click', (event) => {
+    if (event.target.closest('button, a, input, textarea, select, label')) return;
+    const detail = detailFactory(row);
+    if (detail) openDataDetail(detail);
+  });
+}
+
+if (dataDetailCloseBtn) dataDetailCloseBtn.addEventListener('click', closeDataDetail);
+if (dataDetailDismissBtn) dataDetailDismissBtn.addEventListener('click', closeDataDetail);
+if (dataDetailModal) {
+  dataDetailModal.addEventListener('click', (event) => {
+    if (event.target === dataDetailModal) closeDataDetail();
+  });
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (dataDetailModal && !dataDetailModal.classList.contains('hidden')) {
+    closeDataDetail();
+  }
+  if (notificationPanel && !notificationPanel.classList.contains('hidden')) {
+    hideNotificationPanel();
+  }
 });
 
 if (announcementDetailModal) {
@@ -1186,6 +1677,8 @@ const storedAccounts = new Map();
 let latestStaffList = [];
 let latestPendingList = [];
 let latestCitizensList = [];
+let latestAnnouncementsList = [];
+let latestFeedbackList = [];
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -1198,22 +1691,17 @@ function renderDashboardInsights() {
   if (statTotalStaff) statTotalStaff.textContent = String(latestStaffList.length);
   if (statPendingStaff) statPendingStaff.textContent = String(latestPendingList.length);
 
-  // Announcements count (read from localStorage if present)
-  try {
-    const raw = localStorage.getItem('ukonek_announcements');
-    const anns = raw ? JSON.parse(raw) : [];
-    if (statAnnouncements) statAnnouncements.textContent = String(Array.isArray(anns) ? anns.length : 0);
-  } catch (err) {
-    if (statAnnouncements) statAnnouncements.textContent = '0';
+  if (!latestAnnouncementsList.length) {
+    latestAnnouncementsList = loadAnnouncements();
   }
+  const announcementsCount = latestAnnouncementsList.length || 0;
+  if (statAnnouncements) statAnnouncements.textContent = String(announcementsCount);
 
-  // Reports / feedback count (count rows in feedback table)
-  try {
-    const feedbackRows = document.querySelectorAll('#feedback-tbody tr');
-    if (statReports) statReports.textContent = String(feedbackRows ? feedbackRows.length : 0);
-  } catch (err) {
-    if (statReports) statReports.textContent = '0';
+  if (!latestFeedbackList.length) {
+    latestFeedbackList = loadFeedbacks();
   }
+  const feedbackCount = latestFeedbackList.length || 0;
+  if (statReports) statReports.textContent = String(feedbackCount);
 
   // Citizens count
   if (statCitizens) statCitizens.textContent = String(latestCitizensList.length || 0);
@@ -1255,118 +1743,330 @@ function renderDashboardInsights() {
   if (dashboardLastSync) {
     dashboardLastSync.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
   }
+
+  renderDashboardChart();
+}
+
+function renderDashboardChart() {
+  const canvas = document.getElementById('dashboard-chart');
+  const emptyNode = document.getElementById('dashboard-chart-empty');
+  const legendList = document.getElementById('dashboard-chart-legend');
+  if (!canvas || typeof canvas.getContext !== 'function') return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  if (!latestAnnouncementsList.length) latestAnnouncementsList = loadAnnouncements();
+  if (!latestFeedbackList.length) latestFeedbackList = loadFeedbacks();
+
+  const metrics = [
+    { label: 'Staff', value: latestStaffList.length, color: '#3b82f6' },
+    { label: 'Pending', value: latestPendingList.length, color: '#f97316' },
+    { label: 'Announcements', value: latestAnnouncementsList.length || 0, color: '#14b8a6' },
+    { label: 'Feedback', value: latestFeedbackList.length || 0, color: '#a855f7' }
+  ];
+
+  const total = metrics.reduce((sum, metric) => sum + (metric.value || 0), 0);
+  const hasData = total > 0;
+
+  if (emptyNode) emptyNode.classList.toggle('hidden', hasData);
+  if (legendList) {
+    legendList.innerHTML = '';
+    legendList.classList.toggle('hidden', !hasData);
+    if (hasData) {
+      metrics.forEach((metric) => {
+        const item = document.createElement('li');
+        const dot = document.createElement('span');
+        dot.className = 'stats-chart-dot';
+        dot.style.background = metric.color;
+        item.appendChild(dot);
+        const label = document.createElement('span');
+        label.className = 'stats-chart-label';
+        label.textContent = metric.label;
+        item.appendChild(label);
+        const value = document.createElement('strong');
+        value.className = 'stats-chart-value';
+        value.textContent = metric.value;
+        item.appendChild(value);
+        legendList.appendChild(item);
+      });
+    }
+  }
+
+  const baseSize = 320;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = baseSize * ratio;
+  canvas.height = baseSize * ratio;
+  canvas.style.width = `${baseSize}px`;
+  canvas.style.height = `${baseSize}px`;
+  if (typeof ctx.resetTransform === 'function') ctx.resetTransform();
+  else ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(ratio, ratio);
+
+  if (!hasData) {
+    if (chartAnimationState.frameId) {
+      cancelAnimationFrame(chartAnimationState.frameId);
+      chartAnimationState.frameId = null;
+    }
+    ctx.clearRect(0, 0, baseSize, baseSize);
+    return;
+  }
+
+  const segments = metrics
+    .filter((metric) => metric.value > 0)
+    .map((metric) => ({
+      color: metric.color,
+      ratio: metric.value / total
+    }));
+
+  if (!segments.length) {
+    ctx.clearRect(0, 0, baseSize, baseSize);
+    return;
+  }
+
+  if (chartAnimationState.frameId) {
+    cancelAnimationFrame(chartAnimationState.frameId);
+    chartAnimationState.frameId = null;
+  }
+
+  const dimensions = {
+    baseSize,
+    centerX: baseSize / 2,
+    centerY: baseSize / 2,
+    radius: baseSize / 2 - 28,
+    ringWidth: 38
+  };
+
+  const duration = 900;
+  const startTime = performance.now();
+
+  const animate = (timestamp) => {
+    const elapsed = Math.min((timestamp - startTime) / duration, 1);
+    const eased = easeOutCubic(elapsed);
+    drawDashboardPie(ctx, segments, dimensions, eased, total);
+    if (elapsed < 1) {
+      chartAnimationState.frameId = requestAnimationFrame(animate);
+    } else {
+      chartAnimationState.frameId = null;
+    }
+  };
+
+  chartAnimationState.frameId = requestAnimationFrame(animate);
+}
+
+function drawDashboardPie(ctx, segments, dimensions, progress, total) {
+  const { baseSize, centerX, centerY, radius, ringWidth } = dimensions;
+  ctx.clearRect(0, 0, baseSize, baseSize);
+
+  ctx.save();
+  const glow = ctx.createRadialGradient(centerX, centerY, radius * 0.1, centerX, centerY, radius + ringWidth);
+  glow.addColorStop(0, '#ffffff');
+  glow.addColorStop(1, '#dbeafe');
+  ctx.fillStyle = glow;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius + ringWidth / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  const totalSweep = progress * Math.PI * 2;
+  let consumedSweep = 0;
+  let startAngle = -Math.PI / 2;
+
+  ctx.lineWidth = ringWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.15)';
+
+  segments.forEach((segment) => {
+    const segmentSweep = segment.ratio * Math.PI * 2;
+    const drawableSweep = Math.min(segmentSweep, Math.max(totalSweep - consumedSweep, 0));
+    if (drawableSweep > 0.0001) {
+      ctx.beginPath();
+      ctx.strokeStyle = segment.color;
+      ctx.arc(centerX, centerY, radius, startAngle, startAngle + drawableSweep);
+      ctx.stroke();
+    }
+    startAngle += segmentSweep;
+    consumedSweep += segmentSweep;
+  });
+
+  ctx.shadowBlur = 0;
+
+  const innerRadius = radius - ringWidth + 12;
+  ctx.beginPath();
+  ctx.fillStyle = '#ffffff';
+  ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 24px "Segoe UI", "Inter", sans-serif';
+  ctx.fillText(String(total), centerX, centerY - 6);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '13px "Segoe UI", "Inter", sans-serif';
+  ctx.fillText('Total', centerX, centerY + 16);
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
 }
 
 // Load citizens (mobile app users)
 async function loadCitizenData() {
-  try {
-    // Attempt to fetch from API; fallback to empty list
-    const response = await fetch(`${API_BASE}/api/citizens`, { credentials: 'include' });
-    let list = [];
-    if (response && response.ok) {
-      list = await response.json();
-    }
-    latestCitizensList = Array.isArray(list) ? list : [];
+  let list = [];
 
-    if (citizensTbody) {
-      citizensTbody.innerHTML = '';
-      if (latestCitizensList.length === 0) {
-        citizensTbody.innerHTML = '<tr><td class="table-cell" colspan="4">No citizen accounts found.</td></tr>';
-      } else {
-        latestCitizensList.forEach(user => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td class="table-cell">${user.username || user.name || '—'}</td>
-            <td class="table-cell">${user.email || '—'}</td>
-            <td class="table-cell">${user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
-            <td class="table-cell">${user.status || '—'}</td>
-          `;
-          citizensTbody.appendChild(row);
-        });
+  if (isDemoMode) {
+    list = DEMO_CITIZENS;
+  } else {
+    try {
+      const response = await fetch(`${API_BASE}/api/citizens`, { credentials: 'include' });
+      if (response && response.ok) {
+        list = await response.json();
       }
+    } catch (error) {
+      console.error('Error loading citizens:', error);
+      list = DEMO_CITIZENS;
     }
-  } catch (error) {
-    console.error('Error loading citizens:', error);
-    latestCitizensList = [];
-    if (citizensTbody) citizensTbody.innerHTML = '<tr><td class="table-cell" colspan="4">Unable to load citizens.</td></tr>';
+  }
+
+  latestCitizensList = Array.isArray(list) ? [...list] : [];
+
+  if (citizensTbody) {
+    citizensTbody.innerHTML = '';
+    if (latestCitizensList.length === 0) {
+      citizensTbody.innerHTML = '<tr><td class="table-cell" colspan="4">No citizen accounts found.</td></tr>';
+    } else {
+      latestCitizensList.forEach(user => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="table-cell">${user.username || user.name || '—'}</td>
+          <td class="table-cell">${user.email || '—'}</td>
+          <td class="table-cell">${user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
+          <td class="table-cell">${user.status || '—'}</td>
+        `;
+        citizensTbody.appendChild(row);
+        attachDetailRow(row, () => ({
+          tag: 'Citizens',
+          title: user.username || user.name || 'Citizen Account',
+          subtitle: user.email || '',
+          items: [
+            { label: 'Username', value: user.username || user.name || '—' },
+            { label: 'Email', value: user.email || '—' },
+            { label: 'Registered', value: user.created_at ? new Date(user.created_at) : '—' },
+            { label: 'Status', value: user.status || '—' }
+          ]
+        }));
+      });
+    }
   }
 }
 
-function openUsersSubsection(subsectionId) {
-  hideAllSections();
-  if (usersSection) usersSection.classList.remove('hidden');
-  const subsection = document.getElementById(subsectionId);
-  if (subsection) subsection.classList.remove('hidden');
-}
-
 async function loadStaffData() {
-  try {
-    const response = await fetch(`${API_BASE}/api/staff`, { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch staff');
-    const staffList = await response.json();
-    latestStaffList = staffList;
+  let staffList = [];
 
-    const accountsTbody = document.getElementById('accounts-tbody');
-    if (accountsTbody) {
-      accountsTbody.innerHTML = ''; // Clear hardcoded rows
-      staffList.forEach(user => {
-        const identifier = user.username || user.employee_id;
+  if (isDemoMode) {
+    staffList = DEMO_REGISTERED_USERS;
+  } else {
+    try {
+      const response = await fetch(`${API_BASE}/api/staff`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch staff');
+      staffList = await response.json();
+    } catch (error) {
+      console.error('Error loading staff:', error);
+      staffList = DEMO_REGISTERED_USERS;
+    }
+  }
+
+  latestStaffList = Array.isArray(staffList) ? [...staffList] : [];
+
+  const accountsTbody = document.getElementById('accounts-tbody');
+  if (accountsTbody) {
+    accountsTbody.innerHTML = '';
+    if (latestStaffList.length === 0) {
+      accountsTbody.innerHTML = '<tr><td class="table-cell" colspan="4">No registered staff accounts found.</td></tr>';
+    } else {
+      latestStaffList.forEach(user => {
+        const identifier = user.username || user.employee_id || makeDemoId();
         storedAccounts.set(identifier, user);
+
+        const roleValue = user.role ? String(user.role) : '';
+        const roleLabel = roleValue ? roleValue.charAt(0).toUpperCase() + roleValue.slice(1) : '—';
+        const statusValue = user.status ? String(user.status) : 'Active';
+        const statusSlug = statusValue.toLowerCase().replace(/\s+/g, '-');
 
         const row = document.createElement('tr');
         row.className = 'account-row';
-        row.setAttribute('data-role', user.role.toLowerCase());
-        row.setAttribute('data-id', identifier); // Store identifier for lookup
+        row.setAttribute('data-role', roleValue ? roleValue.toLowerCase() : '');
+        row.setAttribute('data-id', identifier);
         row.innerHTML = `
-                    <td class="table-cell">${user.username || '—'}</td>
-                    <td class="table-cell">${user.employee_id || '—'}</td>
-                    <td class="table-cell">${user.role.charAt(0).toUpperCase() + user.role.slice(1)}</td>
-                    <td class="table-cell"><span class="badge-${user.status.toLowerCase()}">${user.status}</span></td>
-                `;
+          <td class="table-cell">${user.username || '—'}</td>
+          <td class="table-cell">${user.employee_id || '—'}</td>
+          <td class="table-cell">${roleLabel}</td>
+          <td class="table-cell"><span class="badge-${statusSlug}">${statusValue}</span></td>
+        `;
         accountsTbody.appendChild(row);
         attachAccountRowListener(row);
       });
     }
-
-    renderDashboardInsights();
-  } catch (error) {
-    console.error('Error loading staff:', error);
   }
+
+  renderDashboardInsights();
 }
 
 async function loadPendingStaffData() {
-  try {
-    const response = await fetch(`${API_BASE}/api/staff/pending`, { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch pending staff');
-    const pendingList = await response.json();
-    latestPendingList = pendingList;
+  let pendingList = [];
 
-    const pendingTbody = document.getElementById('pending-tbody');
-    if (pendingTbody) {
-      pendingTbody.innerHTML = '';
-      pendingList.forEach(user => {
-        const identifier = user.username || user.employee_id;
+  if (isDemoMode) {
+    pendingList = DEMO_PENDING_USERS;
+  } else {
+    try {
+      const response = await fetch(`${API_BASE}/api/staff/pending`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch pending staff');
+      pendingList = await response.json();
+    } catch (error) {
+      console.error('Error loading pending staff:', error);
+      pendingList = DEMO_PENDING_USERS;
+    }
+  }
+
+  latestPendingList = Array.isArray(pendingList) ? [...pendingList] : [];
+
+  const pendingTbody = document.getElementById('pending-tbody');
+  if (pendingTbody) {
+    pendingTbody.innerHTML = '';
+    if (latestPendingList.length === 0) {
+      pendingTbody.innerHTML = '<tr><td class="table-cell" colspan="4">No pending registrations.</td></tr>';
+    } else {
+      latestPendingList.forEach(user => {
+        const identifier = user.username || user.employee_id || makeDemoId();
         storedAccounts.set(identifier, user);
+
+        const roleValue = user.role ? String(user.role) : '';
+        const roleLabel = roleValue ? roleValue.charAt(0).toUpperCase() + roleValue.slice(1) : '—';
+        const createdValue = user.created_at ? new Date(user.created_at).toLocaleString() : '—';
 
         const row = document.createElement('tr');
         row.className = 'pending-row';
-        row.setAttribute('data-role', user.role.toLowerCase());
+        row.setAttribute('data-role', roleValue ? roleValue.toLowerCase() : '');
         row.setAttribute('data-id', identifier);
         row.innerHTML = `
-                    <td class="table-cell">${user.username || '—'}</td>
-                    <td class="table-cell">${user.employee_id || '—'}</td>
-                    <td class="table-cell">${user.role.charAt(0).toUpperCase() + user.role.slice(1)}</td>
-                    <td class="table-cell">${new Date(user.created_at).toLocaleString()}</td>
-                `;
+          <td class="table-cell">${user.username || '—'}</td>
+          <td class="table-cell">${user.employee_id || '—'}</td>
+          <td class="table-cell">${roleLabel}</td>
+          <td class="table-cell">${createdValue}</td>
+        `;
         pendingTbody.appendChild(row);
         attachPendingRowListener(row);
       });
     }
-
-    renderDashboardInsights();
-  } catch (error) {
-    console.error('Error loading pending staff:', error);
   }
+
+  renderDashboardInsights();
 }
 
 // Initial load (after auth check)
@@ -1382,6 +2082,7 @@ async function initDashboardData() {
 
   if (dashboardSection) dashboardSection.classList.remove('hidden');
   if (dashboardLink) dashboardLink.classList.add('is-active');
+  storedAccounts.clear();
   await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
   // Refresh counts after all data loaded
   renderDashboardInsights();
@@ -1391,6 +2092,7 @@ initDashboardData();
 
 if (dashRefreshBtn) {
   dashRefreshBtn.addEventListener('click', async () => {
+    storedAccounts.clear();
     await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
     showToast('Dashboard data refreshed.', 'info');
   });
@@ -1398,13 +2100,13 @@ if (dashRefreshBtn) {
 
 if (dashOpenPendingBtn) {
   dashOpenPendingBtn.addEventListener('click', () => {
-    openUsersSubsection('account-management');
-    if (tabPending) tabPending.click();
+    navigateToSection('users-section', { pane: 'accounts-pane', tab: 'tab-pending' });
   });
 }
 
 if (refreshAccountsBtn) {
   refreshAccountsBtn.addEventListener('click', async () => {
+    storedAccounts.clear();
     await Promise.all([loadStaffData(), loadPendingStaffData(), loadCitizenData()]);
     showToast('Account tables refreshed.', 'info');
   });
@@ -1437,45 +2139,99 @@ if (roleFilter) {
 let currentAccountData = null;
 let currentAction = null; // 'edit' or 'delete'
 
-// Account row click handler
+function openAccountModal(user) {
+  if (!user) return;
+  const modal = document.getElementById('account-modal');
+  if (!modal) return;
+
+  currentAccountData = { ...user };
+
+  const firstName = String(user.first_name || '').trim();
+  const lastName = String(user.last_name || '').trim();
+  const fullName = `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim();
+  const birthdayValue = user.birthday ? new Date(user.birthday) : null;
+  const birthdayText = birthdayValue && !Number.isNaN(birthdayValue.getTime())
+    ? birthdayValue.toLocaleDateString()
+    : '—';
+
+  const modalName = document.getElementById('modal-name');
+  const modalEmail = document.getElementById('modal-email');
+  const modalRole = document.getElementById('modal-role');
+  const modalStatus = document.getElementById('modal-status');
+  const modalContact = document.getElementById('modal-contact');
+  const modalBday = document.getElementById('modal-bday');
+  const confirmSection = document.getElementById('modal-confirm-section');
+  const modalActions = document.getElementById('modal-actions');
+
+  if (modalName) modalName.textContent = fullName || user.username || '—';
+  if (modalEmail) modalEmail.textContent = user.email || '—';
+  if (modalRole) {
+    const roleLabel = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—';
+    modalRole.textContent = roleLabel;
+  }
+  if (modalStatus) modalStatus.textContent = user.status || '—';
+  if (modalContact) modalContact.textContent = user.employee_id || '—';
+  if (modalBday) modalBday.textContent = birthdayText;
+
+  ['address'].forEach(field => {
+    const el = document.getElementById(`modal-${field}`);
+    if (el) el.textContent = user[field] || '—';
+  });
+
+  if (confirmSection) confirmSection.style.display = 'none';
+  if (modalActions) modalActions.style.display = 'flex';
+
+  modal.style.display = 'flex';
+}
+
+// Account row click handler -> shared detail modal
 function attachAccountRowListener(row) {
-  row.addEventListener('click', () => {
+  if (!dataDetailModal) {
+    row.addEventListener('click', () => {
+      const identifier = row.getAttribute('data-id');
+      const user = storedAccounts.get(identifier);
+      if (!user) return;
+      openAccountModal(user);
+    });
+    return;
+  }
+
+  attachDetailRow(row, () => {
     const identifier = row.getAttribute('data-id');
     const user = storedAccounts.get(identifier);
-    if (!user) return;
-
-    currentAccountData = { ...user };
+    if (!user) return null;
 
     const firstName = String(user.first_name || '').trim();
     const lastName = String(user.last_name || '').trim();
     const fullName = `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim();
-    const birthdayValue = user.birthday ? new Date(user.birthday) : null;
-    const birthdayText = birthdayValue && !Number.isNaN(birthdayValue.getTime())
-      ? birthdayValue.toLocaleDateString()
-      : '—';
+    const statusValue = user.status || '—';
+    const roleLabel = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—';
 
-    // Populate modal
-    document.getElementById('modal-name').textContent = fullName || user.username || '—';
-    document.getElementById('modal-email').textContent = user.email || '—';
-    document.getElementById('modal-role').textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-    document.getElementById('modal-status').textContent = user.status;
-    document.getElementById('modal-contact').textContent = user.employee_id || '—';
-    document.getElementById('modal-bday').textContent = birthdayText;
+    const actions = document.getElementById('account-modal') ? [
+      {
+        label: 'Manage Account',
+        className: 'btn',
+        onClick: () => {
+          closeDataDetail();
+          openAccountModal(user);
+        }
+      }
+    ] : [];
 
-    // Hide/clear extra fields that don't exist in our schema
-    const extraFields = ['address'];
-    extraFields.forEach(field => {
-      const el = document.getElementById(`modal-${field}`);
-      if (el) el.textContent = user[field] || '—';
-    });
-
-    // Reset confirmation section
-    document.getElementById('modal-confirm-section').style.display = 'none';
-    document.getElementById('modal-actions').style.display = 'flex';
-
-    // Show modal
-    const modal = document.getElementById('account-modal');
-    modal.style.display = 'flex';
+    return {
+      tag: 'Staff Account',
+      title: fullName || user.username || 'Staff Account',
+      subtitle: user.email || '',
+      items: [
+        { label: 'Username', value: user.username || '—' },
+        { label: 'Employee ID', value: user.employee_id || '—' },
+        { label: 'Role', value: roleLabel },
+        { label: 'Status', value: statusValue },
+        { label: 'Email', value: user.email || '—' },
+        { label: 'Birthday', value: user.birthday ? new Date(user.birthday) : '—' }
+      ],
+      actions
+    };
   });
 }
 
@@ -1754,6 +2510,9 @@ const consultationForm = document.getElementById('consultation-form');
 const consultationsTbody = document.getElementById('consultations-tbody');
 const consultSaveBtn = document.getElementById('consult-save-btn');
 const consultReportBtn = document.getElementById('consult-report-btn');
+const openConsultModalBtn = document.getElementById('open-consult-modal-btn');
+const consultationModal = document.getElementById('consultation-modal');
+const consultationCancelBtn = document.getElementById('consultation-cancel-btn');
 
 const prescriptionModal = document.getElementById('prescription-modal');
 const prescriptionForm = document.getElementById('prescription-form');
@@ -1767,11 +2526,68 @@ const medicineForm = document.getElementById('medicine-form');
 const medicineTbody = document.getElementById('medicine-tbody');
 const medicineReportBtn = document.getElementById('medicine-report-btn');
 
+function openConsultationModal(prefill = {}) {
+  if (!consultationModal) return;
+  if (consultationForm) consultationForm.reset();
+  if (prefill.patientId) {
+    const patientInput = document.getElementById('consult-patient-id');
+    if (patientInput) patientInput.value = prefill.patientId;
+  }
+  consultationModal.classList.remove('hidden');
+}
+
+function closeConsultationModal() {
+  if (!consultationModal) return;
+  consultationModal.classList.add('hidden');
+  if (consultationForm) consultationForm.reset();
+}
+
+if (openConsultModalBtn) {
+  openConsultModalBtn.addEventListener('click', () => openConsultationModal());
+}
+
+if (consultationCancelBtn) {
+  consultationCancelBtn.addEventListener('click', () => closeConsultationModal());
+}
+
+if (consultationModal) {
+  consultationModal.addEventListener('click', (event) => {
+    if (event.target === consultationModal) closeConsultationModal();
+  });
+}
+
 let consultations = [];
 let medicines = [];
 let prescriptions = [];
 
 // === DUMMY DATA ARRAYS ===
+const DUMMY_CONSULTATIONS = [
+  {
+    id: 'C-20240101',
+    patientId: 'CIT-1001',
+    symptoms: 'Fever, dry cough, fatigue',
+    diagnosis: 'Seasonal Influenza',
+    notes: 'Advise rest and plenty of fluids. Prescribe antiviral if symptoms persist.',
+    created_at: '2024-12-10T09:15:00Z'
+  },
+  {
+    id: 'C-20240115',
+    patientId: 'CIT-1042',
+    symptoms: 'Persistent headache and blurred vision',
+    diagnosis: 'Hypertension monitoring',
+    notes: 'Adjust maintenance meds. Schedule follow-up in two weeks.',
+    created_at: '2024-12-12T13:40:00Z'
+  },
+  {
+    id: 'C-20240128',
+    patientId: 'CIT-1110',
+    symptoms: 'Shortness of breath, mild chest tightness',
+    diagnosis: 'Asthma exacerbation',
+    notes: 'Nebulization done onsite. Prescribe inhaled corticosteroid.',
+    created_at: '2024-12-15T08:05:00Z'
+  }
+];
+
 const DUMMY_MEDICINES = [
   { name: 'Paracetamol 500mg', qty: 150, unit: 'tabs' },
   { name: 'Amoxicillin 500mg', qty: 80, unit: 'capsules' },
@@ -1853,11 +2669,38 @@ function renderConsultations() {
       </td>
     `;
     consultationsTbody.appendChild(tr);
+    attachDetailRow(tr, () => ({
+      tag: 'Consultation',
+      title: c.patientId || 'Consultation Record',
+      subtitle: c.id,
+      items: [
+        { label: 'Consultation ID', value: c.id },
+        { label: 'Patient ID', value: c.patientId },
+        { label: 'Symptoms', value: c.symptoms || '—' },
+        { label: 'Diagnosis', value: c.diagnosis || '—' },
+        { label: 'Notes', value: c.notes || '—' },
+        { label: 'Recorded', value: new Date(c.created_at) }
+      ]
+    }));
   });
 }
 
 function renderMedicines() {
   if (!medicineTbody) return;
+
+  const role = getSessionRole();
+  const allowAdjust = canAdjustMedicineInventory(role);
+  const allowAddNew = canAddNewMedicine(role);
+
+  const medicineFormEl = document.getElementById('medicine-form');
+  if (medicineFormEl) {
+    const formPanel = medicineFormEl.closest('.panel');
+    if (formPanel) formPanel.classList.toggle('hidden', !allowAddNew);
+    medicineFormEl.querySelectorAll('input, select, textarea, button').forEach((el) => {
+      el.disabled = !allowAddNew;
+    });
+  }
+
   medicineTbody.innerHTML = '';
   medicines.forEach(m => {
     const tr = document.createElement('tr');
@@ -1865,22 +2708,57 @@ function renderMedicines() {
       <td class="table-cell">${m.name}</td>
       <td class="table-cell">${m.qty}</td>
       <td class="table-cell">${m.unit || ''}</td>
-      <td class="table-cell">
-        <button class="btn small" data-action="add" data-name="${m.name}">+ Add</button>
-        <button class="btn small outline" data-action="sub" data-name="${m.name}">- Subtract</button>
-      </td>
+      <td class="table-cell"></td>
     `;
+
+    const actionsTd = tr.querySelector('td:last-child');
+    if (allowAdjust) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn small';
+      addBtn.dataset.action = 'add';
+      addBtn.dataset.name = m.name;
+      addBtn.textContent = '+ Add';
+
+      const subBtn = document.createElement('button');
+      subBtn.className = 'btn small outline';
+      subBtn.dataset.action = 'sub';
+      subBtn.dataset.name = m.name;
+      subBtn.textContent = '- Subtract';
+
+      actionsTd.appendChild(addBtn);
+      actionsTd.appendChild(subBtn);
+    } else {
+      actionsTd.textContent = 'View only';
+    }
+
     medicineTbody.appendChild(tr);
+    attachDetailRow(tr, () => ({
+      tag: 'Inventory',
+      title: m.name,
+      subtitle: 'Medicine Stock Detail',
+      items: [
+        { label: 'Name', value: m.name },
+        { label: 'Quantity', value: m.qty },
+        { label: 'Unit', value: m.unit || '—' }
+      ]
+    }));
   });
 }
 
-function initClinicalData() {
-  consultations = loadFromStorage('ukonek_consultations') || [];
-  medicines = loadFromStorage('ukonek_medicine_inventory') || DUMMY_MEDICINES;
-  if (medicines.length === 0) {
+async function initClinicalData() {
+  await ensureAuthenticatedSession().catch(() => null);
+  consultations = loadFromStorage('ukonek_consultations');
+  if (!Array.isArray(consultations) || consultations.length === 0) {
+    consultations = [...DUMMY_CONSULTATIONS];
+    saveToStorage('ukonek_consultations', consultations);
+  }
+
+  medicines = loadFromStorage('ukonek_medicine_inventory');
+  if (!Array.isArray(medicines) || medicines.length === 0) {
     medicines = [...DUMMY_MEDICINES];
     saveToStorage('ukonek_medicine_inventory', medicines);
   }
+
   prescriptions = loadFromStorage('ukonek_prescriptions') || [];
   renderConsultations();
   renderMedicines();
@@ -1899,6 +2777,7 @@ function renderAnnouncements() {
   const tbody = document.getElementById('announcements-tbody');
   if (!tbody) return;
   const announcements = loadAnnouncements();
+  latestAnnouncementsList = Array.isArray(announcements) ? [...announcements] : [];
   tbody.innerHTML = '';
   announcements.forEach(a => {
     const tr = document.createElement('tr');
@@ -1909,10 +2788,39 @@ function renderAnnouncements() {
       <td class="table-cell">${a.date}</td>
     `;
     tbody.appendChild(tr);
+    attachAnnouncementRow(tr, a);
   });
   // Update stats
   if (document.getElementById('stat-announcements')) {
     document.getElementById('stat-announcements').textContent = String(announcements.length);
+  }
+}
+
+function openAnnouncementDetailLegacy(announcement) {
+  if (!announcementDetailModal) return;
+  if (announcementDetailTitle) announcementDetailTitle.textContent = announcement.title || 'Announcement';
+  if (announcementDetailBody) announcementDetailBody.textContent = announcement.content || announcement.body || announcement.preview || '—';
+  if (announcementDetailDate) announcementDetailDate.textContent = announcement.date || '';
+  announcementDetailModal.classList.remove('hidden');
+}
+
+function attachAnnouncementRow(row, announcement) {
+  if (!row) return;
+  if (dataDetailModal) {
+    attachDetailRow(row, () => ({
+      tag: 'Announcement',
+      title: announcement.title || 'Announcement',
+      subtitle: announcement.date || '',
+      items: [
+        { label: 'Title', value: announcement.title || '—' },
+        { label: 'Date', value: announcement.date || '—' },
+        { label: 'Summary', value: announcement.preview || '—' },
+        { label: 'Details', value: announcement.content || announcement.body || announcement.preview || '—' }
+      ]
+    }));
+  } else {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => openAnnouncementDetailLegacy(announcement));
   }
 }
 
@@ -1929,6 +2837,7 @@ function renderFeedbacks() {
   const tbody = document.getElementById('feedback-tbody');
   if (!tbody) return;
   const feedbacks = loadFeedbacks();
+  latestFeedbackList = Array.isArray(feedbacks) ? [...feedbacks] : [];
   tbody.innerHTML = '';
   feedbacks.forEach(f => {
     const tr = document.createElement('tr');
@@ -1939,6 +2848,17 @@ function renderFeedbacks() {
       <td class="table-cell">${f.date}</td>
     `;
     tbody.appendChild(tr);
+    attachDetailRow(tr, () => ({
+      tag: 'Feedback',
+      title: f.subject || 'Feedback Detail',
+      subtitle: f.from || '',
+      items: [
+        { label: 'From', value: f.from },
+        { label: 'Subject', value: f.subject },
+        { label: 'Date', value: f.date },
+        { label: 'Rating', value: typeof f.rating !== 'undefined' ? `${f.rating} / 5` : '—' }
+      ]
+    }));
   });
   // Update stats
   if (document.getElementById('stat-reports')) {
@@ -1962,7 +2882,11 @@ if (consultationForm) {
     consultations.push(entry);
     saveToStorage('ukonek_consultations', consultations);
     renderConsultations();
-    consultationForm.reset();
+    if (consultationModal) {
+      closeConsultationModal();
+    } else {
+      consultationForm.reset();
+    }
     showToast('Consultation saved', 'success');
   });
 }
@@ -2039,6 +2963,10 @@ if (prescriptionForm) {
 if (medicineForm) {
   medicineForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (!canAddNewMedicine()) {
+      showToast('You only have view access to the inventory.', 'warning');
+      return;
+    }
     const name = document.getElementById('med-name').value.trim();
     const qty = Number(document.getElementById('med-qty').value) || 0;
     const unit = document.getElementById('med-unit').value.trim();
@@ -2065,6 +2993,10 @@ if (medicineTbody) {
     const action = btn.getAttribute('data-action');
     const name = btn.getAttribute('data-name');
     if (!action || !name) return;
+    if (!canAdjustMedicineInventory()) {
+      showToast('You only have view access to the inventory.', 'warning');
+      return;
+    }
     const idx = medicines.findIndex(m => m.name === name);
     if (idx < 0) return;
     if (action === 'add') {
@@ -2089,8 +3021,19 @@ if (consultationsTbody) {
     const entry = consultations.find(c => c.id === id);
     if (!action || !entry) return;
     if (action === 'view') {
-      // show brief modal-like window using alert for simplicity
-      alert(`Consultation ${entry.id}\nPatient: ${entry.patientId}\nDiagnosis: ${entry.diagnosis}\nNotes: ${entry.notes}`);
+      openDataDetail({
+        tag: 'Consultation',
+        title: entry.patientId || 'Consultation Detail',
+        subtitle: entry.id,
+        items: [
+          { label: 'Consultation ID', value: entry.id },
+          { label: 'Patient ID', value: entry.patientId },
+          { label: 'Symptoms', value: entry.symptoms || '—' },
+          { label: 'Diagnosis', value: entry.diagnosis || '—' },
+          { label: 'Notes', value: entry.notes || '—' },
+          { label: 'Recorded', value: new Date(entry.created_at) }
+        ]
+      });
     } else if (action === 'prescribe') {
       if (prescriptionModal) prescriptionModal.classList.remove('hidden');
       if (prescriptionPatient) prescriptionPatient.value = entry.patientId || '';

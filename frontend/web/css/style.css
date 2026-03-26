@@ -429,12 +429,7 @@ select:focus {
 }
 
 @media (max-width: 768px) {
-    body.auth-page .wrap {
-        min-height: 100svh;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: stretch;
-        gap: 14px;
+    .mainview {
         padding: 14px;
     }
 
@@ -503,10 +498,6 @@ select:focus {
 }
 
 @media (max-width: 480px) {
-    body.auth-page .side {
-        display: none;
-    }
-
     body.auth-page .wrap {
         padding: 10px;
         gap: 0;
@@ -527,8 +518,8 @@ select:focus {
 
 .sidebar {
     box-sizing: border-box;
-    flex: 0 0 70px;
-    width: 70px;
+    flex: 0 0 260px;
+    width: 260px;
     min-height: 100vh;
     background: linear-gradient(180deg, #002b8f 0%, #012165 100%);
     color: #fff;
@@ -539,31 +530,7 @@ select:focus {
 }
 
 
-
-
-
-.main-nav::-webkit-scrollbar {
-    display: none;
-}
-
-.main-nav .nav-item, .main-nav .nav-btn {
-    flex: 1 1 auto;
-    min-width: 140px;
-    padding: 8px 12px;
-    font-size: 13px;
-}
-
-@media (max-width: 900px) {
-    .main-nav {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        border-radius: 20px 20px 0 0;
-        padding: 12px;
-        max-height: 80px;
-    }
-}
+/* sidebar nav already handled below */
 
 
 .sidebar-inner {
@@ -579,8 +546,8 @@ select:focus {
 }
 
 .sidebar.collapsed {
-    flex-basis: 70px;
-    width: 70px;
+    flex-basis: 72px;
+    width: 72px;
 }
 
 .sidebar .brand-row {
@@ -651,6 +618,74 @@ select:focus {
     background: rgba(255, 255, 255, 0.04);
     padding: 6px 8px;
     border-radius: 6px
+}
+
+.burger-toggle {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.burger-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+
+.burger-menu,
+.burger-arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.burger-menu {
+    flex-direction: column;
+    gap: 4px;
+}
+
+.burger-menu span {
+    width: 18px;
+    height: 2px;
+    background: #fff;
+    border-radius: 999px;
+}
+
+
+.burger-arrow {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateX(-6px);
+    pointer-events: none;
+}
+
+.burger-arrow svg {
+    width: 18px;
+    height: 18px;
+    stroke: #fff;
+}
+
+.burger-toggle.is-expanded .burger-menu {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateX(6px);
+}
+
+.burger-toggle.is-expanded .burger-arrow {
+    opacity: 1;
+    transform: translate(-50%, -50%);
 }
 
 .sidebar .brand-row .control-btns .icon-btn#burger {
@@ -1563,7 +1598,7 @@ select:focus {
 .stats-grid {
     margin-top: 16px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
 }
 
@@ -1594,6 +1629,65 @@ select:focus {
     margin: 0;
     color: #94a3b8;
     font-size: 12px;
+}
+
+.stat-card-metric {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.stat-card-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    background: #eef4ff;
+    color: #0f172a;
+}
+
+.stat-card-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.stat-icon-indigo {
+    background: rgba(59, 130, 246, 0.12);
+    color: #1d4ed8;
+}
+
+.stat-icon-amber {
+    background: rgba(249, 115, 22, 0.16);
+    color: #b45309;
+}
+
+.stat-icon-emerald {
+    background: rgba(16, 185, 129, 0.14);
+    color: #0f766e;
+}
+
+.stat-icon-violet {
+    background: rgba(139, 92, 246, 0.16);
+    color: #6d28d9;
+}
+
+.stat-icon-cyan {
+    background: rgba(14, 165, 233, 0.16);
+    color: #0369a1;
+}
+
+.stat-icon-rose {
+    background: rgba(244, 63, 94, 0.16);
+    color: #be123c;
+}
+
+.stat-icon-slate {
+    background: rgba(100, 116, 139, 0.16);
+    color: #334155;
 }
 
 .stat-warning {
